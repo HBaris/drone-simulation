@@ -114,6 +114,7 @@ local DroneConfig = {
 		MAX_MOTOR_CURRENT_A = 15.0, -- est.: gives ~26 A hover, ~9 min usable flight
 		AVIONICS_CURRENT_A = 1.5, -- Pixhawk + Pi 5 + IMX500 + GPS + gimbal at 14.8 V (est.)
 		ESC_TELEMETRY = false, -- Skywalker PWM ESCs report nothing; per-motor values are estimates
+		RANGEFINDER = false, -- no lidar: landing slows down by barometric altitude above home, not ground height
 		ARM_LENGTH_M = 0.225, -- F450: 450 mm motor-to-motor diagonal
 		INERTIA_KGM2 = 0.035,
 		DRAG_COEFF = 0.04, -- m/s² per (m/s)²: ~22° lean at 10 m/s (frame + gimbal, est.)
@@ -152,6 +153,20 @@ local DroneConfig = {
 		FENCE_RADIUS = 300.0,  -- m from home -> RTL
 		FENCE_ALT_MAX = 100.0, -- m above home -> RTL
 		CRASH_SPEED = 3.0,     -- m/s: touching anything faster than this is a crash
+	},
+
+	-- GPS / position estimate (M8N + ArduPilot EKF). The autopilot flies on this estimate, not the true position.
+	GPS = {
+		ENABLED = true,
+		SIGMA_H_M = 0.7,     -- open-sky horizontal wander (1 sigma)
+		SIGMA_V_M = 0.4,     -- barometric altitude drift
+		TAU_S = 30,          -- how slowly the error wanders
+		SATS_OPEN = 14,
+		HDOP_OPEN = 0.8,
+		GLITCH_RATE = 0.08,  -- multipath jumps per second at full obstruction
+		GLITCH_M = { 2, 6 }, -- jump size range
+		FAILSAFE_SATS = 6,   -- fewer satellites (or HDOP above FAILSAFE_HDOP) for 3 s -> LAND (EKF failsafe)
+		FAILSAFE_HDOP = 2.5,
 	},
 
 	-- Local MAVLink bridge (tools/mavlink_bridge.py): the sim appears to ground stations as ArduCopter.

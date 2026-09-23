@@ -93,6 +93,9 @@
             },
             "BridgeClient": {
               "$path": "src/client/controllers/BridgeClient.luau"
+            },
+            "GpsModel": {
+              "$path": "src/client/controllers/GpsModel.luau"
             }
           }
         }

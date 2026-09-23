@@ -163,6 +163,12 @@ manifest = [
     },
     {
         "type": "ModuleScript",
+        "name": "GpsModel",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
+        "file": os.path.join(src_dir, "client", "controllers", "GpsModel.luau")
+    },
+    {
+        "type": "ModuleScript",
         "name": "FlightRecorder",
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
         "file": os.path.join(src_dir, "client", "controllers", "FlightRecorder.luau")

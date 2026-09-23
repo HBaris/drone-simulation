@@ -21,6 +21,7 @@ local FlightRecorder = require(script.Parent:WaitForChild("FlightRecorder"))
 local Autopilot = require(script.Parent:WaitForChild("Autopilot"))
 local DronePhysics = require(script.Parent:WaitForChild("DronePhysics"))
 local FlightEnvironment = require(script.Parent:WaitForChild("FlightEnvironment"))
+local GpsModel = require(script.Parent:WaitForChild("GpsModel"))
 local BridgeClient = require(script.Parent:WaitForChild("BridgeClient"))
 
 local S = DroneConfig.STUDS_PER_METER
@@ -48,6 +49,11 @@ local lastRates = Vector3.zero -- roll, pitch, yaw rates (rad/s, ArduPilot signs
 local smoothedAngAccel = Vector3.zero
 local flightClock = 0 -- drives the turbulence noise
 local currentWind = Vector3.zero -- m/s at the drone, for the panel
+-- What the flight controller believes (GPS + baro through the EKF): the autopilot flies on this
+local gps = GpsModel.new()
+local estPos = drone.Position
+local skyTimer = 0
+local gpsBadTimer = 0
 
 -- Live telemetry as attributes (read by tests / Studio tools today, the bridge server later)
 local telemetryOut = Instance.new("Configuration")
@@ -129,6 +135,8 @@ end
 
 -- Reset after a crash: back on the pad with a fresh battery and healthy motors
 local function resetDrone()
+	gps = GpsModel.new()
+	gpsBadTimer = 0
 	drone = DronePhysics.new(DroneConfig.HOME.SIM_POSITION, -90)
 	telemetry = DroneHealthModel.new()
 	crashReason = ""
@@ -146,7 +154,7 @@ local bridgeHooks: BridgeClient.Hooks = {
 		if Autopilot.Mode == "CRASHED" then
 			return false
 		end
-		Autopilot.arm(drone.Position)
+		Autopilot.arm(estPos) -- home = where the flight controller thinks it is
 		return true
 	end,
 	Disarm = function(force: boolean)
@@ -322,7 +330,25 @@ local function resolveContacts(prevPos: Vector3)
 	drone.Pitch, drone.Roll = 0, if Autopilot.Mode == "CRASHED" then drone.Roll else 0
 end
 
+-- GPS / baro estimate for this frame; sky obstruction is sampled twice a second (12 raycasts)
+local function updateEstimate(dt: number)
+	skyTimer += dt
+	if skyTimer >= 0.5 then
+		skyTimer = 0
+		gps:setObstruction(FlightEnvironment.skyObstruction(drone.Position))
+	end
+	estPos = gps:step(dt, drone.Position)
+	-- EKF failsafe (ArduPilot FS_EKF_ACTION = LAND): position estimate unusable for 3 s in an autonomous mode
+	local bad = gps.Sats < DroneConfig.GPS.FAILSAFE_SATS or gps.Hdop > DroneConfig.GPS.FAILSAFE_HDOP
+	gpsBadTimer = if bad and Autopilot.Armed then gpsBadTimer + dt else 0
+	local autonomous = Autopilot.Mode == "AUTO" or Autopilot.Mode == "GUIDED" or Autopilot.Mode == "RTL"
+	if gpsBadTimer > 3 and autonomous then
+		Autopilot.setMode("LAND", string.format("GPS/EKF FAILSAFE (%d uydu, HDOP %.1f)", gps.Sats, gps.Hdop))
+	end
+end
+
 local function stepFlight(dt: number)
+	updateEstimate(dt)
 	local wasOnGround = onGroundTimer > 0
 	local groundY = FlightEnvironment.groundY(drone.Position)
 	-- Wind at the drone's height above ground (sheltered to nothing while sitting on the pad)
@@ -337,11 +363,14 @@ local function stepFlight(dt: number)
 		return
 	end
 
-	local desired = Autopilot.guidance(dt, drone.Position, groundY)
+	-- With a rangefinder the autopilot knows its true height above ground; without one (TEI drone) it only
+	-- has barometric altitude above home, so landing slows down by that instead.
+	local guidanceGround = if groundY and DroneConfig.AIRFRAME.RANGEFINDER then groundY + (estPos.Y - drone.Position.Y) else nil
+	local desired = Autopilot.guidance(dt, estPos, guidanceGround)
 	if desired then
 		-- The route editor's "start" arms for AUTO; every other autonomous mode needs an armed drone
 		if Autopilot.Mode == "AUTO" then
-			Autopilot.arm(drone.Position)
+			Autopilot.arm(estPos)
 		end
 		if Autopilot.Armed then
 			DronePhysics.stepGuided(drone, dt, desired, currentWind, Autopilot.commandedYawRate())
@@ -356,7 +385,7 @@ local function stepFlight(dt: number)
 	local sticks = readSticks()
 	if not Autopilot.Armed then
 		if sticks.Up > 0 then
-			Autopilot.arm(drone.Position) -- throttle up on the pad arms the motors
+			Autopilot.arm(estPos) -- throttle up on the pad arms the motors
 		else
 			if groundY then
 				drone.Position = Vector3.new(drone.Position.X, groundY, drone.Position.Z) -- rest on the pad
@@ -398,6 +427,7 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 		local finished
 		drone.Position, drone.Yaw, drone.Pitch, drone.Roll, finished = recorder:stepReplay(dt)
 		drone.Velocity = (drone.Position - prevPos) / dt
+		estPos = drone.Position -- replaying a recording: no estimator in the loop
 		if finished then
 			recorder:stopReplay()
 		end
@@ -458,7 +488,7 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 			telemetry.CurrentA += m.CurrentA
 		end
 	end
-	Autopilot.checkFailsafes(dt, drone.Position, telemetry.VoltageV)
+	Autopilot.checkFailsafes(dt, estPos, telemetry.VoltageV) -- the fence works on the estimate, as on a real FC
 	for _, m in ipairs(telemetry.Motors) do
 		if m.Failed and Autopilot.Armed and not onGround then
 			crash("MOTOR ARIZASI — quad 3 motorla uçamaz")
@@ -518,6 +548,11 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 		telemetryOut:SetAttribute("Event", Autopilot.LastEvent)
 		telemetryOut:SetAttribute("Armed", Autopilot.Armed)
 		telemetryOut:SetAttribute("Position", drone.Position)
+		telemetryOut:SetAttribute("EstPosition", estPos)
+		telemetryOut:SetAttribute("GpsSats", gps.Sats)
+		telemetryOut:SetAttribute("Hdop", gps.Hdop)
+		telemetryOut:SetAttribute("GpsErrorM", gps:horizontalError())
+		telemetryOut:SetAttribute("SkyObstruction", gps.Obstruction)
 		telemetryOut:SetAttribute("AltM", altMeters)
 		telemetryOut:SetAttribute("SpeedMs", drone.Velocity.Magnitude / S)
 		telemetryOut:SetAttribute("HeadingDeg", (-drone.Yaw) % 360)
@@ -543,6 +578,7 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 		bridgeTimer = 0
 		stateEvent:FireServer(BridgeClient.buildState({
 			Drone = drone, Telemetry = telemetry, Wind = currentWind, OnGround = onGround,
+			EstPosition = estPos, GpsSats = gps.Sats, Hdop = gps.Hdop,
 			Crash = crashReason, YawRate = yawRate,
 		}))
 	end
@@ -551,7 +587,9 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 	local weather = ReplicatedStorage:FindFirstChild("Weather")
 	local bridge = ReplicatedStorage:FindFirstChild("Bridge")
 	local bridgeStatus = if bridge then tostring(bridge:GetAttribute("Status")) else ""
-	local panelStatus = Autopilot.Status .. (if bridgeStatus:match("^BAĞLI") then "  ·  📡 " .. bridgeStatus else "")
+	local gpsText = string.format("🛰 %d uydu · HDOP %.1f · ±%.1f m", gps.Sats, gps.Hdop, gps:horizontalError())
+	local panelStatus = (if Autopilot.Status ~= "" then Autopilot.Status .. "  ·  " else "") .. gpsText
+		.. (if bridgeStatus:match("^BAĞLI") then "  ·  📡 bağlı" else "")
 	healthPanel.Update(telemetry, Autopilot.Mode, panelStatus, Autopilot.LastEvent,
 		Vector3.new(toHome.X, 0, toHome.Z).Magnitude / S, {
 			Report = WindModel.report(),

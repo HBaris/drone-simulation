@@ -32,7 +32,11 @@ Bu dosya Claude Code tarafından doldurulacaktır. Antigravity'nin bıraktığı
   ve loglanır (test edildi). Asıl koruma için MAVLink2 imzalama önerildi; GCS failsafe parametrede ve simülasyonda.
 
 **Sıradaki öneriler**
-- ⏳ N1 · GPS/konum gürültüsü ve kentsel multipath simülasyonu (şu an hover 0,03 m — gerçekte ±1–2 m)
+- ✅ N1 · GPS/EKF tahmini (`GpsModel.luau`): otopilot artık gerçek konumla değil tahminle uçar. Açık havada Gauss-Markov
+  gezinmesi (±0,7 m, HDOP ile ölçekli), baro irtifa kayması; `FlightEnvironment.skyObstruction` (35° yükseklikte 12 ışın)
+  ile binalar gökyüzünü kapattıkça uydu ↓, HDOP ↑, multipath sıçramaları; 3 sn kötü fix → LAND (EKF failsafe).
+  Rangefinder yok → iniş hızı baro irtifasına göre. Studio: hover'da gerçek drone 0,71 m gezindi (önce 0,03 m);
+  %92 kapalı sokağa inerken 14→4 uydu, HDOP 3,2, 5,2 m hata → GPS/EKF FAILSAFE → sokağa güvenli iniş.
 - ✅ N2 · Görev öncesi engel kontrolü (`dronebridge/obstacles.py`, `tools/check_mission.py`): rota ArduCopter'ın uçtuğu
   gibi (dikey kalkış, düz bacaklar, RTL tırmanış/dönüş/iniş) 1 m adımla harita binaları + SRTM araziye karşı taranır.
   `sim2mission.py` kaydın sahası biliniyorsa otomatik kontrol eder, çakışmada dosya yazmaz. Doğrulama: Studio'da
@@ -115,8 +119,12 @@ Tasarım kararları:
   15 m'lik binaya çarptı → **gerçek görev öncesi engel kontrolünün değeri**.
 - ÖNERİ: bu drone için görev hızı 5–6 m/s (10 m/s değil) ve kalkıştan sonra önce güvenli irtifaya dikey tırmanış.
 
+### GPS Modeli (N1)
+- Ayarlar `DroneConfig.GPS`; köprü uydu sayısı ve HDOP'u GPS_RAW_INT'te gönderir, GCS artık tahmini konumu görür.
+- Ev noktası ARM anındaki *tahmini* konumdur → RTL inişi gerçek pedden GPS hatası kadar sapar (gerçekteki gibi).
+- Pusula hatası / manyetik parazit henüz yok (yol haritasında).
+
 ### Bilinen Sorunlar
-- GPS/konum gürültüsü yok → hover/iniş gerçekte olduğundan çok isabetli (0,03 m). Gerçekte ±1–2 m, binalar arası daha kötü.
 - Studio arka plandayken render FPS düşüyor; dt 0.1 ile sınırlı olduğundan simülasyon yavaş çekimde akıyor (fizik doğru).
 - Uçak/airframe değerleri (kütle, itki, batarya) TAHMİN — gerçek drone ölçülerine göre güncellenmeli.
 - Sürü formasyonunda Drone_001 sunucu tarafından da hareket ettiriliyor ama istemci her karede kendisi konumlandırıyor

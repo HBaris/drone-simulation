@@ -226,8 +226,11 @@ class ArduCopterEmulator:
         lat, lon, amsl = self.enu_to_global(s["e"], s["n"], s["u"])
         ve, vn = s.get("ve", 0.0), s.get("vn", 0.0)
         cog = int((math.degrees(math.atan2(ve, vn)) % 360) * 100)
-        self.mav.gps_raw_int_send(self.ms() * 1000, 3, int(lat * 1e7), int(lon * 1e7), int(amsl * 1000),
-                                  90, 140, int(math.hypot(ve, vn) * 100), cog, 14)
+        sats = int(s.get("gps_sats", 14))
+        fix = 3 if sats >= 6 else (2 if sats >= 4 else 1)
+        eph = int(s.get("hdop", 0.9) * 100)
+        self.mav.gps_raw_int_send(self.ms() * 1000, fix, int(lat * 1e7), int(lon * 1e7), int(amsl * 1000),
+                                  eph, int(eph * 1.6), int(math.hypot(ve, vn) * 100), cog, sats)
 
     def send_battery(self, s):
         cell_mv = int(s.get("cell_v", s.get("voltage", 0) / 4) * 1000)

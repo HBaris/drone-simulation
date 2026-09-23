@@ -20,6 +20,9 @@ export type Context = {
 	OnGround: boolean,
 	Crash: string,
 	YawRate: number, -- deg/s, clockwise positive
+	EstPosition: Vector3, -- what the flight controller believes (GPS/EKF); a GCS sees this, not the truth
+	GpsSats: number,
+	Hdop: number,
 }
 
 -- Controller hooks for commands the autopilot alone cannot carry out
@@ -46,7 +49,7 @@ end
 
 function BridgeClient.buildState(ctx: Context): { [string]: any }
 	local d, t = ctx.Drone, ctx.Telemetry
-	local e, n, u = simToEnu(d.Position - PAD)
+	local e, n, u = simToEnu(ctx.EstPosition - PAD)
 	local ve, vn, vu = simToEnu(d.Velocity)
 	local he, hn, hu = simToEnu(Autopilot.Home - PAD)
 	local motors, rpm, temps, currents = {}, {}, {}, {}
@@ -73,6 +76,8 @@ function BridgeClient.buildState(ctx: Context): { [string]: any }
 		motors = motors, rpm = rpm, temps = temps, motor_currents = currents,
 		wind = { round(ctx.Wind.X, 2), round(-ctx.Wind.Z, 2), round(ctx.Wind.Y, 2) },
 		home_geo = DroneConfig.HOME.GEO,
+		gps_sats = ctx.GpsSats,
+		hdop = round(ctx.Hdop, 2),
 	}
 end
 
