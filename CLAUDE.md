@@ -33,9 +33,13 @@ Bu dosya Claude Code tarafından doldurulacaktır. Antigravity'nin bıraktığı
 
 **Sıradaki öneriler**
 - ⏳ N1 · GPS/konum gürültüsü ve kentsel multipath simülasyonu (şu an hover 0,03 m — gerçekte ±1–2 m)
-- ⏳ N2 · Görev öncesi engel kontrolü: rota bacaklarını harita binalarına karşı sim2mission'da kontrol et
-  (fırtına testinde tırmanan bacak binaya çarptı)
-- ⏳ N3 · TEI GCS arayüz değişikliklerini kullanıcının makinesinde `BASLAT.bat` ile doğrulamak
+- ✅ N2 · Görev öncesi engel kontrolü (`dronebridge/obstacles.py`, `tools/check_mission.py`): rota ArduCopter'ın uçtuğu
+  gibi (dikey kalkış, düz bacaklar, RTL tırmanış/dönüş/iniş) 1 m adımla harita binaları + SRTM araziye karşı taranır.
+  `sim2mission.py` kaydın sahası biliniyorsa otomatik kontrol eder, çakışmada dosya yazmaz. Doğrulama: Studio'da
+  binaya çarpan fırtına rotası reddedildi, şovdaki 40 m hastane turu temiz, aynı tur 15 m'de reddedildi.
+- ✅ N3 · TEI GCS kullanıcının makinesinde açıldı (venv yeniden kuruldu), UDP ile simülasyona bağlandı, Sağlık sekmesi
+  gerçek veriyle doldu (motorlar, hücreler). Havada teşhis satırı henüz uçurulmadı (aynı mantık testlerle doğrulandı).
+  Kalan küçük kusur: TEI'nin kendi buton yerleşiminde pencere yüksekliği yetmeyince yazılar kesiliyor.
 - ⏳ N4 · Şarj istasyonları arası otomatik rota planlayıcı (batarya modeli + istasyon grafiği)
 
 ---
@@ -195,6 +199,12 @@ Kalanlar:
 - `rasperiypi/adim3b-wifi-cozum.html` hotspot parolasını düz metin içeriyor → parola değiştirilmeli, rehberden çıkarılmalı.
 - Pi'de SSH parola ile giriş açık → SSH anahtarına geçip parola girişini kapatmak önerilir.
 - RC yok: FS_GCS_ENABLE=1 tek güvence; RC alıcı + FS_THR_ENABLE önerilir. Pi 5 regülatörü (3 A) yetersiz.
+
+### Engel Kontrolü (N2) — kullanım
+- `python tools/check_mission.py gorev.waypoints --map scripts/maps/Bahcelievler.luau [--clearance 5] [--rtl-alt 30]`
+  → her türlü görev dosyası (TEI, QGC, Mission Planner, sim2mission). Çakışma varsa çıkış kodu 1.
+- Bilinen tuzak: ped hastane zemininden 9,5 m yüksekte; göreli irtifalar pede göredir, binalar kendi zeminlerinde durur.
+- Sınır: OSM'de ağaç/direk/hat yok, yüksekliği bilinmeyen bina 12 m → kontrolden geçmek gerekli ama yeterli değil.
 
 ### Yol Haritası
 - [ ] **Yerel köprü sunucusu**: Studio → HttpService → `localhost` Python sunucusu; JSON'u otomatik kaydedip `.plan` üretir.

@@ -12,7 +12,16 @@ import argparse
 import sys
 from pathlib import Path
 
-from dronebridge import flightfile, mission, safety
+from dronebridge import flightfile, mission, obstacles, safety
+
+MAPS_DIR = Path(__file__).resolve().parent.parent / "scripts" / "maps"
+
+
+def find_site_map(site):
+    """scripts/maps/<Site>.luau for a simulator site name such as 'BAHCELIEVLER', or None."""
+    if not site or not MAPS_DIR.exists():
+        return None
+    return next((p for p in MAPS_DIR.glob("*.luau") if p.stem.lower() == site.lower()), None)
 
 
 def parse_home(text):
@@ -40,6 +49,9 @@ def main(argv=None):
     ap.add_argument("--max-speed", type=float, default=safety.Limits.max_speed_ms)
     ap.add_argument("--max-flight-min", type=float, default=safety.Limits.max_flight_min)
     ap.add_argument("--no-fence", action="store_true", help=".plan dosyasına geofence çemberi ekleme")
+    ap.add_argument("--map", type=Path, help="Engel kontrolü haritası (varsayılan: kaydın sahası, scripts/maps/)")
+    ap.add_argument("--clearance", type=float, default=5.0, help="Çatı/arazi üstü emniyet payı (m)")
+    ap.add_argument("--rtl-alt", type=float, default=30.0, help="Drone'daki RTL_ALT (m), dönüş yolu kontrolü için")
     args = ap.parse_args(argv)
 
     data = flightfile.load(args.input)
@@ -66,6 +78,26 @@ def main(argv=None):
 
     items = mission.build_items(waypoints, args.home, args.takeoff_alt, end=end, land_at=landing,
                                 max_speed=args.max_speed)
+
+    # Obstacle check against the mapped site: the simulator already knows every building there
+    map_path = args.map or find_site_map(data.get("site"))
+    if map_path:
+        site = obstacles.SiteMap.load(map_path)
+        path_items = [{"command": it.command, "frame": it.frame, "lat": it.params[4], "lon": it.params[5],
+                       "alt": it.params[6]} for it in items]
+        segments = obstacles.mission_path(path_items, (args.home.lat, args.home.lon, args.home.amsl), args.rtl_alt, site)
+        conflicts = obstacles.summarize(obstacles.check(site, segments, args.clearance))
+        print(f"Engel kontrolü ({map_path.name}, pay {args.clearance:.0f} m, RTL {args.rtl_alt:.0f} m): "
+              + ("temiz" if not conflicts else f"{len(conflicts)} çakışma"))
+        for c in conflicts:
+            print(f"  [ERROR] {c.phase}: {c.obstacle} çatısı {c.obstacle_top_amsl:.1f} m AMSL, drone {c.drone_amsl:.1f} m "
+                  f"@ {c.lat:.6f}, {c.lon:.6f}")
+        if conflicts:
+            print("Görev dosyası YAZILMADI: rota binaya/araziye çok yakın. İrtifayı artırın veya rotayı değiştirin.",
+                  file=sys.stderr)
+            return 1
+    else:
+        print("Engel kontrolü: bu saha için harita yok (--map ile verilebilir).")
 
     base = args.output or args.input.with_suffix("")
     if args.format in ("plan", "both"):

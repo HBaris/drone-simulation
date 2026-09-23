@@ -29,3 +29,11 @@ python tools/mavlink_bridge.py --also udpout:127.0.0.1:14551   # simülasyon: GC
 python tools/health_monitor.py --label "yeni pervaneler"         # oturum raporu + geçmişle kıyas
 ```
 Gerçek drone'da: `--url udpin:0.0.0.0:14550` (GCS kapalıyken) veya Pi'de `--url /dev/serial0 --baud 57600`.
+
+## Engel kontrolü
+
+```bash
+python tools/check_mission.py gorev.waypoints --map scripts/maps/Bahcelievler.luau
+```
+Rota binalara/araziye `--clearance` (varsayılan 5 m) kadar yaklaşırsa çakışmaları listeler ve 1 ile çıkar.
+`sim2mission.py` bilinen bir sahanın kaydını dönüştürürken bu kontrolü otomatik yapar.
