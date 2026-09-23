@@ -21,7 +21,10 @@ Bu dosya Claude Code tarafından doldurulacaktır. Antigravity'nin bıraktığı
   (verim kaybı yüzdesi), CCW/CW, ağırlık merkezi, itki payı, doyma, iç direnç, hücreler, kalan süre, titreşim/EKF/GPS,
   oturum geçmişi (yıpranma). Studio'da doğrulandı: SIM_ENGINE_MUL=0.85 ile M2 → "≈%14 itki kaybı (verim 0.86)";
   iç direnç 35 mΩ (model 35 mΩ)
-- ⏳ T3 · TEI GCS'e motor/sağlık paneli + .waypoints/.plan içe/dışa aktarma
+- ✅ T3 · TEI GCS'e "Sağlık" sekmesi (motor PWM, hücreler, titreşim, EKF, rüzgâr, hover teşhisi) + .waypoints/.plan
+  içe/dışa aktarma. Kaynak: `integrations/tei-ground-control/` (modüller + `tei_gcs.patch`), yerelde uygulandı,
+  yedek `tei_gcs.py.yedek-20260923`. Qt'siz mantık test edildi; **arayüz PySide6 olmadığı için çalıştırılamadı**
+  (kullanıcı `BASLAT.bat` ile denemeli)
 - ⏳ T4 · Simülasyon ayarlarından ArduCopter 4.7 başlangıç `.param` dosyası (+ drone'un kendi dökümüyle karşılaştırma)
 - ⏳ T5 · Güvenlik: `tei_kopru.py` için kimlik doğrulama / MAVLink2 imzalama önerisi, GCS failsafe
 

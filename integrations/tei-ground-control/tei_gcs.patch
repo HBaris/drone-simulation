@@ -1,0 +1,132 @@
+diff --git a/tei_gcs.py b/tei_gcs.py
+index 8a21f61..53f2efc 100644
+--- a/tei_gcs.py
++++ b/tei_gcs.py
+@@ -34,9 +34,12 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel,
+                                QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout,
+                                QComboBox, QLineEdit, QTextEdit, QGroupBox, QSlider,
+                                QDoubleSpinBox, QMessageBox, QFrame, QSizePolicy,
+-                               QTabWidget, QListWidget, QCheckBox, QSpinBox)
++                               QTabWidget, QListWidget, QCheckBox, QSpinBox,
++                               QFileDialog)
+ 
+ from tei_harita import HaritaWidget, mesafe_m
++from tei_saglik import SaglikPaneli
++import tei_gorev_dosya as gorev_dosya
+ 
+ APP_NAME = "TEI GROUND CONTROL"
+ APP_SHORT = "TEI GCS"
+@@ -81,6 +84,15 @@ class Telemetry:
+     gps_sats: int = 0
+     lat: float = 0.0
+     lon: float = 0.0
++    # sağlık (tei_saglik.py): ESC telemetrisi olmadan Pixhawk'ın gönderdikleri
++    motor_pwm: list = field(default_factory=lambda: [0, 0, 0, 0])   # SERVO_OUTPUT_RAW
++    cells: list = field(default_factory=list)                        # BATTERY_STATUS hücre voltajları
++    mah: int = -1                                                    # BATTERY_STATUS harcanan mAh
++    vibe: list = field(default_factory=lambda: [0.0, 0.0, 0.0])      # VIBRATION m/s²
++    clipping: int = 0
++    ekf_max: float = 0.0                                             # EKF_STATUS_REPORT en kötü varyans
++    wind_speed: float = -1.0                                         # WIND (ArduPilot rüzgâr tahmini)
++    wind_dir: float = 0.0
+ 
+ 
+ GPS_FIX_TEXT = {
+@@ -821,6 +833,20 @@ class LinkThread(QThread):
+             self.logged.emit(f"[Pixhawk] {txt}", lvl)
+         elif mt == "COMMAND_ACK":
+             self._komut_yaniti(msg, mavutil)
++        # --- sağlık sekmesi için (tei_saglik.py) ---
++        elif mt == "SERVO_OUTPUT_RAW":
++            t.motor_pwm = [msg.servo1_raw, msg.servo2_raw, msg.servo3_raw, msg.servo4_raw]
++        elif mt == "BATTERY_STATUS":
++            t.cells = [v / 1000.0 for v in msg.voltages if 0 < v < 65535]
++            t.mah = msg.current_consumed
++        elif mt == "VIBRATION":
++            t.vibe = [msg.vibration_x, msg.vibration_y, msg.vibration_z]
++            t.clipping = msg.clipping_0 + msg.clipping_1 + msg.clipping_2
++        elif mt == "EKF_STATUS_REPORT":
++            t.ekf_max = max(msg.velocity_variance, msg.pos_horiz_variance,
++                            msg.pos_vert_variance, msg.compass_variance)
++        elif mt == "WIND":
++            t.wind_speed, t.wind_dir = msg.speed, msg.direction % 360
+ 
+     KOMUT_ADLARI = {
+         400: "ARM/DISARM",
+@@ -1054,6 +1080,9 @@ class MainWindow(QMainWindow):
+ 
+         self.sekmeler.addTab(harita_sayfa, "  Harita  ")
+         self.sekmeler.addTab(self._make_motor_test_tab(), "  Motor Testi  ")
++        self.saglik = SaglikPaneli({"ok": C_OK, "warn": C_WARN, "danger": C_DANGER, "muted": C_MUTED,
++                                    "accent": C_ACCENT, "line": C_LINE, "text": C_INK})
++        self.sekmeler.addTab(self.saglik, "  Sağlık  ")
+         lay.addWidget(self.sekmeler, 3)
+ 
+         # telemetri kutulari
+@@ -1360,6 +1389,12 @@ class MainWindow(QMainWindow):
+         ggl.addWidget(btn_gorev_yukle, 3, 0, 1, 2)
+         ggl.addWidget(btn_wp_temizle, 3, 2)
+         ggl.addWidget(btn_gorev_basla, 4, 0, 1, 3)
++        btn_dosya_ac = QPushButton("Dosyadan Aç (.waypoints/.plan)")
++        btn_dosya_ac.clicked.connect(self._gorev_dosya_ac)
++        btn_dosya_kaydet = QPushButton("Dosyaya Kaydet")
++        btn_dosya_kaydet.clicked.connect(self._gorev_dosya_kaydet)
++        ggl.addWidget(btn_dosya_ac, 5, 0, 1, 2)
++        ggl.addWidget(btn_dosya_kaydet, 5, 2)
+         lay.addWidget(gb_gorev)
+ 
+         lay.addStretch(1)
+@@ -1404,6 +1439,45 @@ class MainWindow(QMainWindow):
+         self.harita.waypoint_temizle()
+         self._wp_listesi_yenile()
+ 
++    def _gorev_dosya_ac(self):
++        yol, _ = QFileDialog.getOpenFileName(self, "Görev dosyası aç", "",
++                                             "Görev dosyaları (*.waypoints *.plan *.txt);;Tüm dosyalar (*)")
++        if not yol:
++            return
++        try:
++            ev, kalkis, noktalar, uyarilar = gorev_dosya.haritaya(gorev_dosya.oku(yol))
++        except Exception as exc:
++            self.log(f"Görev dosyası okunamadı: {exc}", "err")
++            return
++        if not noktalar:
++            self.log("Dosyada konumlu görev noktası yok.", "warn")
++            return
++        self.harita.waypoint_temizle()
++        self.harita.waypointler = list(noktalar)
++        if ev:
++            self.harita.ev_ayarla(*ev)
++        if kalkis:
++            self.spin_wp_alt.setValue(int(round(max(2, min(120, kalkis)))))
++        self._wp_listesi_yenile()
++        self.harita.update()
++        self.log(f"{len(noktalar)} nokta yüklendi: {yol}", "ok")
++        for u in uyarilar:
++            self.log(u, "warn")
++        if ev:
++            self.log("Dosyadaki ev noktası haritaya alındı — drone'un gerçek kalkış yeri bu mu, kontrol edin.", "info")
++
++    def _gorev_dosya_kaydet(self):
++        noktalar = list(self.harita.waypointler)
++        if not noktalar:
++            self.log("Kaydedilecek görev noktası yok.", "warn")
++            return
++        ev = self.harita.ev or (noktalar[0][0], noktalar[0][1])
++        yol, _ = QFileDialog.getSaveFileName(self, "Görevi kaydet", "gorev.waypoints", "QGC WPL 110 (*.waypoints)")
++        if not yol:
++            return
++        gorev_dosya.yaz(yol, gorev_dosya.tei_gorevi(ev, float(self.spin_wp_alt.value()), noktalar))
++        self.log(f"Görev kaydedildi: {yol}", "ok")
++
+     def _gorev_yukle(self):
+         if not self._require_link():
+             return
+@@ -1551,6 +1625,7 @@ class MainWindow(QMainWindow):
+         t = self.tel
+         self.horizon.set_attitude(t.roll, t.pitch)
+         self.compass.set_heading(t.yaw)
++        self.saglik.guncelle(t)
+         if t.connected and t.gps_fix >= 2:
+             self.harita.drone_guncelle(t.lat, t.lon, t.yaw)
+ 
