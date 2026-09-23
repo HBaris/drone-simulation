@@ -1,0 +1,36 @@
+# TEI F450 başlangıç parametreleri — drone-simulation/tools/make_params.py
+# Kaynak: simülasyon bulguları (CLAUDE.md) + ArduPilot önerileri. Yüklemeden önce gözden geçirin.
+# Ad kümesi: ArduCopter 4.6 (doğrulanmadı)
+# RC alıcı yokken ArduPilot ARM öncesi RC kontrolleri nedeniyle ARM'ı reddedebilir; ARMING_CHECK'i gevşetmek yerine bir RC alıcı + kumanda takılması önerilir (FS_THR_ENABLE ancak o zaman anlamlı).
+# Harmonik çentik filtresi (INS_HNTCH_*): ESC telemetrisi olmadığından MODE=1 (gaz tabanlı), INS_HNTCH_REF=MOT_THST_HOVER; frekans ilk uçuşun FFT/log analiziyle belirlenmeli — değer uydurulmadı.
+# Bu dosya bir başlangıç önerisidir: yüklemeden önce Mission Planner/QGC'de parametreleri tek tek gözden geçirin.
+FRAME_CLASS,1
+FRAME_TYPE,1
+WPNAV_SPEED,600
+RTL_ALT,3000
+RTL_SPEED,500
+RTL_LOIT_TIME,5000
+LAND_SPEED,50
+ANGLE_MAX,3000
+BATT_MONITOR,4
+BATT_CAPACITY,5000
+BATT_ARM_VOLT,15.2
+BATT_LOW_VOLT,14
+BATT_CRT_VOLT,13.2
+BATT_LOW_TIMER,10
+BATT_FS_LOW_ACT,2
+BATT_FS_CRT_ACT,1
+FENCE_ENABLE,1
+FENCE_TYPE,3
+FENCE_RADIUS,300
+FENCE_ALT_MAX,100
+FENCE_ACTION,1
+FS_GCS_ENABLE,1
+FS_GCS_TIMEOUT,5
+FS_THR_ENABLE,1
+DISARM_DELAY,10
+MOT_HOVER_LEARN,2
+MOT_THST_HOVER,0.55
+FS_CRASH_CHECK,1
+SERIAL2_PROTOCOL,2
+SERIAL2_BAUD,57

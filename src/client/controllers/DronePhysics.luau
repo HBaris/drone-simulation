@@ -19,7 +19,7 @@ local AP = DroneConfig.AUTOPILOT
 local MAX_SPEED = DroneConfig.FLIGHT.MAX_HORIZONTAL_SPEED * 1.5 -- studs/s (~8.5 m/s)
 local CLIMB_RATE = DroneConfig.FLIGHT.MAX_CLIMB_SPEED
 local YAW_SPEED = 100.0
-local TILT_LIMIT = 35.0
+local TILT_LIMIT = AP.ANGLE_MAX
 local AUTO_LEVEL_SPEED = 6.0
 
 local DronePhysics = {}

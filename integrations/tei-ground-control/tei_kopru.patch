@@ -1,0 +1,104 @@
+diff --git a/tei_kopru.py b/tei_kopru.py
+index 6f91dd3..98a8798 100644
+--- a/tei_kopru.py
++++ b/tei_kopru.py
+@@ -23,6 +23,15 @@ SECENEKLER
+   --port /dev/serial0     seri port (varsayilan: /dev/serial0)
+   --baud 57600            hiz (varsayilan: 57600)
+   --udp 14550             hedef UDP portu (varsayilan: 14550)
++  --izinli 172.20.10.3    komut kabul edilecek ek IP (tekrarlanabilir). Varsayilan olarak
++                          SADECE hedef bilgisayardan gelen paketler Pixhawk'a iletilir.
++  --herkese-acik          (onerilmez) eski davranis: aga bagli herkesten komut kabul et
++
++GUVENLIK
++--------
++  Kopru, hotspot'a bagli herhangi bir cihazdan gelen UDP paketini Pixhawk'a yazmaz; yalnizca izinli
++  IP'lerden gelenleri iletir, digerlerini sayar ve uyari basar. Ayni agdaki biri IP taklit edebilir:
++  asil koruma Pixhawk'ta MAVLink2 imzalamadir (Mission Planner > Config > MAVLink Signing).
+ """
+ 
+ import os
+@@ -208,11 +217,18 @@ def hiz_tara(port):
+ 
+ 
+ # ============================================================ KOPRU MODU
++def izinli_mi(adres, izinli):
++    """izinli None ise herkes kabul (eski davranis); aksi halde yalnizca listedeki IP'ler."""
++    return izinli is None or adres[0] in izinli
++
++
+ class Kopru:
+-    def __init__(self, port, baud, hedef_ip, hedef_port):
++    def __init__(self, port, baud, hedef_ip, hedef_port, izinli=None):
+         self.port = port
+         self.baud = baud
+         self.hedef = (hedef_ip, hedef_port)
++        self.izinli = izinli  # IP kumesi; None = herkese acik
++        self.reddedilen = {}  # ip -> paket sayisi
+         self.calisiyor = True
+         self.pc_adresi = None
+ 
+@@ -257,6 +273,12 @@ class Kopru:
+             except Exception:
+                 time.sleep(0.1)
+                 continue
++            if veri and not izinli_mi(adres, self.izinli):
++                if adres[0] not in self.reddedilen:
++                    print(renk(f"\n  UYARI: izinsiz cihazdan komut reddedildi: {adres[0]} "
++                               f"(izin vermek icin --izinli {adres[0]})", "k"))
++                self.reddedilen[adres[0]] = self.reddedilen.get(adres[0], 0) + 1
++                continue
+             if veri:
+                 self.pc_adresi = adres
+                 self.seri_gelen += len(veri)
+@@ -270,6 +292,10 @@ class Kopru:
+         baslik("TEI KOPRU CALISIYOR")
+         print(f"  Pixhawk : {self.port} @ {self.baud} bps")
+         print(f"  Hedef PC: {self.hedef[0]}:{self.hedef[1]}")
++        if self.izinli is None:
++            print(renk("  UYARI: herkese acik mod — agdaki her cihaz drone'a komut gonderebilir!", "k"))
++        else:
++            print(f"  Komut kabul: {', '.join(sorted(self.izinli))}")
+         print()
+         print("  Bilgisayarda TEI Ground Control'u ac:")
+         print(renk("     Kaynak: UDP — Raspberry Pi / WiFi", "s"))
+@@ -311,6 +337,8 @@ class Kopru:
+             print(renk("  Kopru durduruldu.", "s"))
+             print(f"  Toplam: drone->pc {self.seri_giden/1024:.1f} KB, "
+                   f"pc->drone {self.seri_gelen/1024:.1f} KB")
++            if self.reddedilen:
++                print(renk(f"  Reddedilen izinsiz paketler: {self.reddedilen}", "k"))
+             print()
+         finally:
+             self.calisiyor = False
+@@ -337,6 +365,8 @@ def main():
+     udp = DEF_UDP
+     hedef = None
+     mod = "kopru"
++    ek_izinli = set()
++    herkese_acik = False
+ 
+     i = 0
+     while i < len(args):
+@@ -357,6 +387,11 @@ def main():
+         elif a == "--udp" and i + 1 < len(args):
+             i += 1
+             udp = int(args[i])
++        elif a == "--izinli" and i + 1 < len(args):
++            i += 1
++            ek_izinli.add(args[i])
++        elif a == "--herkese-acik":
++            herkese_acik = True
+         elif not a.startswith("-"):
+             hedef = a
+         i += 1
+@@ -377,7 +412,8 @@ def main():
+             sys.exit(1)
+         print(renk(f"\n  Hedef otomatik bulundu (SSH): {hedef}", "g"))
+ 
+-    Kopru(port, baud, hedef, udp).calistir()
++    izinli = None if herkese_acik else {hedef, *ek_izinli}
++    Kopru(port, baud, hedef, udp, izinli).calistir()
+ 
+ 
+ if __name__ == "__main__":

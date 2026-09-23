@@ -127,18 +127,19 @@ local DroneConfig = {
 	-- Autopilot behaviour, mirroring ArduPilot Copter 4.6 defaults (converted to meters).
 	-- Copter 4.7 renames them to SI units (e.g. WPNAV_SPEED -> WP_SPD, RTL_ALT -> RTL_ALT_M).
 	AUTOPILOT = {
-		WPNAV_SPEED = 10.0,    -- m/s horizontal cruise
+		WPNAV_SPEED = 6.0,     -- m/s cruise (ArduPilot default 10; tools/make_params.py recommends 6 for the F450)
 		WPNAV_SPEED_UP = 2.5,  -- m/s
 		WPNAV_SPEED_DN = 1.5,  -- m/s
 		WPNAV_ACCEL = 2.5,     -- m/s²
 		WPNAV_RADIUS = 2.0,    -- m, waypoint reached
 		TAKEOFF_ALT = 5.0,     -- m, same default as tools/sim2mission.py --takeoff-alt
-		RTL_ALT = 15.0,        -- m above home
+		RTL_ALT = 30.0,        -- m above home (default 15 would hit 21 m buildings around the Bahçelievler pad)
 		RTL_LOIT_TIME = 5.0,   -- s hover over home before landing
 		LAND_SPEED = 0.5,      -- m/s final descent
 		LAND_SPEED_HIGH = 1.5, -- m/s above LAND_ALT_LOW (0 in ArduPilot = WPNAV_SPEED_DN)
 		LAND_ALT_LOW = 10.0,   -- m
 		YAW_RATE = 90.0,       -- deg/s
+		ANGLE_MAX = 30.0,      -- deg lean limit (ArduPilot default)
 		DISARM_DELAY = 10.0,   -- s on the ground before motors stop (ArduPilot default)
 	},
 

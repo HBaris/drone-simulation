@@ -25,8 +25,18 @@ Bu dosya Claude Code tarafından doldurulacaktır. Antigravity'nin bıraktığı
   içe/dışa aktarma. Kaynak: `integrations/tei-ground-control/` (modüller + `tei_gcs.patch`), yerelde uygulandı,
   yedek `tei_gcs.py.yedek-20260923`. Qt'siz mantık test edildi; **arayüz PySide6 olmadığı için çalıştırılamadı**
   (kullanıcı `BASLAT.bat` ile denemeli)
-- ⏳ T4 · Simülasyon ayarlarından ArduCopter 4.7 başlangıç `.param` dosyası (+ drone'un kendi dökümüyle karşılaştırma)
-- ⏳ T5 · Güvenlik: `tei_kopru.py` için kimlik doğrulama / MAVLink2 imzalama önerisi, GCS failsafe
+- ✅ T4 · `tools/make_params.py`: simülasyon bulgularından başlangıç parametreleri (WP 6 m/s, RTL 30 m, batarya/fence/
+  GCS failsafe…). 4.7 adları tahmin edilmez: drone dökümü (`--base`) hangi adı içeriyorsa o ad + doğru birim kullanılır;
+  `--compare` farkları listeler. Simülasyon da bu değerlere çekildi (6 m/s, RTL 30 m, ANGLE_MAX 30°).
+- ✅ T5 · `tei_kopru.py`: yalnız hedef PC (+ `--izinli`) IP'sinden gelen komutlar Pixhawk'a gider, diğerleri reddedilir
+  ve loglanır (test edildi). Asıl koruma için MAVLink2 imzalama önerildi; GCS failsafe parametrede ve simülasyonda.
+
+**Sıradaki öneriler**
+- ⏳ N1 · GPS/konum gürültüsü ve kentsel multipath simülasyonu (şu an hover 0,03 m — gerçekte ±1–2 m)
+- ⏳ N2 · Görev öncesi engel kontrolü: rota bacaklarını harita binalarına karşı sim2mission'da kontrol et
+  (fırtına testinde tırmanan bacak binaya çarptı)
+- ⏳ N3 · TEI GCS arayüz değişikliklerini kullanıcının makinesinde `BASLAT.bat` ile doğrulamak
+- ⏳ N4 · Şarj istasyonları arası otomatik rota planlayıcı (batarya modeli + istasyon grafiği)
 
 ---
 
@@ -178,6 +188,13 @@ Kalanlar:
   çift farkı → montaj/yaw; ön-arka/sağ-sol → ağırlık merkezi. İç direnç ardışık örnek farklarından (dV = -R·dI).
 - Oturumlar `.cache/health_history.json`'a yazılır; hover gazı ilk oturumlara göre %5+ artarsa yıpranma uyarısı.
 - Gerçek drone'da ek: VIBRATION (>30/60 m/s²), clipping, EKF varyansı, GPS uydu/HDOP — simülasyon bunları üretmez.
+
+### Güvenlik Notları (T5)
+- `tei_kopru.py` artık varsayılan olarak yalnız hedef PC'den komut alır (`--izinli IP`, eski davranış `--herkese-acik`).
+  Aynı ağda IP taklidi mümkün → Pixhawk'ta **MAVLink2 imzalama** (Mission Planner > Config > MAVLink Signing) açılmalı.
+- `rasperiypi/adim3b-wifi-cozum.html` hotspot parolasını düz metin içeriyor → parola değiştirilmeli, rehberden çıkarılmalı.
+- Pi'de SSH parola ile giriş açık → SSH anahtarına geçip parola girişini kapatmak önerilir.
+- RC yok: FS_GCS_ENABLE=1 tek güvence; RC alıcı + FS_THR_ENABLE önerilir. Pi 5 regülatörü (3 A) yetersiz.
 
 ### Yol Haritası
 - [ ] **Yerel köprü sunucusu**: Studio → HttpService → `localhost` Python sunucusu; JSON'u otomatik kaydedip `.plan` üretir.
