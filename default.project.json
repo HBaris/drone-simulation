@@ -40,6 +40,18 @@
           },
           "DroneHUD": {
             "$path": "src/client/DroneHUD.client.luau"
+          },
+          "ui": {
+            "$className": "Folder",
+            "EditorUI": {
+              "$path": "src/client/ui/EditorUI.luau"
+            }
+          },
+          "visuals": {
+            "$className": "Folder",
+            "PathVisualizer": {
+              "$path": "src/client/visuals/PathVisualizer.luau"
+            }
           }
         }
       }

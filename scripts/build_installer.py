@@ -52,6 +52,28 @@ manifest = [
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")',
     },
     {
+        "type": "Folder",
+        "name": "ui",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient")',
+    },
+    {
+        "type": "ModuleScript",
+        "name": "EditorUI",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("ui")',
+        "file": os.path.join(src_dir, "client", "ui", "EditorUI.luau")
+    },
+    {
+        "type": "Folder",
+        "name": "visuals",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient")',
+    },
+    {
+        "type": "ModuleScript",
+        "name": "PathVisualizer",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("visuals")',
+        "file": os.path.join(src_dir, "client", "visuals", "PathVisualizer.luau")
+    },
+    {
         "type": "LocalScript",
         "name": "WaypointEditor",
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient")',
