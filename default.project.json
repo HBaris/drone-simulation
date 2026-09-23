@@ -38,6 +38,9 @@
         },
         "WeatherService": {
           "$path": "src/server/WeatherService.server.luau"
+        },
+        "BridgeLink": {
+          "$path": "src/server/BridgeLink.server.luau"
         }
       }
     },
@@ -87,6 +90,9 @@
             },
             "FlightEnvironment": {
               "$path": "src/client/controllers/FlightEnvironment.luau"
+            },
+            "BridgeClient": {
+              "$path": "src/client/controllers/BridgeClient.luau"
             }
           }
         }

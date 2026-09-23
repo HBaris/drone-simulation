@@ -4,6 +4,27 @@ Bu dosya Claude Code tarafından doldurulacaktır. Antigravity'nin bıraktığı
 
 ---
 
+## 📋 İlerleme — Yapılanlar / Yapılacaklar
+> Her aşama bitince burası güncellenir. ✅ bitti · 🔄 sürüyor · ⏳ sırada
+
+**Tamamlanan aşamalar**
+- ✅ A1 · Uçuş kaydedici + `sim2mission.py` (.plan/.waypoints, güvenlik kontrolleri) — commit c373029
+- ✅ A2 · ArduPilot tarzı otopilot (AUTO/RTL/LAND, failsafe), motor/batarya sağlık modeli, çarpışma — c373029
+- ✅ A3 · Gerçek Bahçelievler haritası (OSM), Studio'da hastane çevresi test uçuşu — c373029
+- ✅ A4 · SRTM arazi, canlı rüzgâr (METAR LTBA), TEI F450 profili — b9e8666
+
+**TEI entegrasyonu (öneri listesi, sırayla)**
+- ✅ T1 · MAVLink köprüsü: simülasyon UDP 14550'de ArduCopter 4.7 gibi görünür, TEI-Ground-Control değiştirilmeden uçurur
+  (Studio'da doğrulandı: GUIDED→ARM→kalkış 15 m, gövde hız komutu, TEI biçimi görev yükleme + AUTO + RTL,
+  motor testi PWM, GCS kopunca 5 sn'de RTL)
+- ⏳ T2 · Sağlık servisi (`tools/health_monitor.py`): SERVO_OUTPUT_RAW / VIBRATION / batarya → motor dengesizliği,
+  yıpranma, iç direnç — hem köprüye hem gerçek drone'a bağlanır
+- ⏳ T3 · TEI GCS'e motor/sağlık paneli + .waypoints/.plan içe/dışa aktarma
+- ⏳ T4 · Simülasyon ayarlarından ArduCopter 4.7 başlangıç `.param` dosyası (+ drone'un kendi dökümüyle karşılaştırma)
+- ⏳ T5 · Güvenlik: `tei_kopru.py` için kimlik doğrulama / MAVLink2 imzalama önerisi, GCS failsafe
+
+---
+
 ## 📝 Claude Code Geliştirme Notları
 
 <!-- Claude Code buraya yapacağı geliştirmeleri, uçuş kayıt mimarisini ve donanım aktarım notlarını ekleyebilir -->
@@ -122,6 +143,25 @@ Kalanlar:
 5. **Güvenlik açıkları**: `tei_kopru.py` hotspot'taki herkesten gelen UDP'yi uçuş kartına yazıyor (kimlik doğrulama yok,
    MAVLink2 signing önerilir); RC yok; GCS failsafe (FS_GCS_ENABLE) şart.
 6. **Başlangıç .param dosyası**: simülasyon ayarlarından (FENCE, BATT_FS, RTL, WP hızı) ArduCopter 4.7 parametreleri üret.
+
+### MAVLink Köprüsü (T1) — kullanım
+1. Studio: Game Settings → Security → Allow HTTP Requests açık; Play.
+2. `python tools/mavlink_bridge.py` (pymavlink gerekir: `pip install pymavlink`; yoksa `rasperiypi/…/venv`
+   içindeki kopya otomatik bulunur). Köprü 127.0.0.1:34874'te HTTP dinler, MAVLink'i `udpout:127.0.0.1:14550`'e yollar.
+3. TEI-Ground-Control / QGroundControl / Mission Planner → UDP 14550 → bağlan. Simülasyon "ArduCopter 4.7 Quad".
+4. Sahte GCS ile uçtan uca test: `python tools/gcs_smoketest.py` (gerçek drone'a karşı sadece `--steps link`).
+- Mimari: istemci (drone sim) → RemoteEvent `BridgeState` 5 Hz → `BridgeLink.server` → HTTP → köprü
+  (`dronebridge/mavsim.py` ArduCopter emülatörü) → UDP MAVLink. Komutlar ters yönde `BridgeCommands` ile döner.
+- Gönderilen: HEARTBEAT, ATTITUDE (10 Hz), GLOBAL_POSITION_INT, VFR_HUD, SERVO_OUTPUT_RAW (5 Hz), SYS_STATUS,
+  GPS_RAW_INT (2 Hz), BATTERY_STATUS, HOME_POSITION, EXTENDED_SYS_STATE, MISSION_CURRENT, WIND (1 Hz), STATUSTEXT.
+  ESC_TELEMETRY yalnız `--esc-telemetry` ile (TEI'nin PWM ESC'leri gönderemez); VIBRATION/EKF modellenmediği için yok.
+- Karşılanan: ARM/DISARM (havada force gerekli), SET_MODE/DO_SET_MODE (STABILIZE/ALT_HOLD→MANUAL, LOITER/POSHOLD/BRAKE→
+  GUIDED tut, GUIDED, AUTO, RTL, LAND), NAV_TAKEOFF (GUIDED'da), SET_POSITION_TARGET_LOCAL_NED (BODY/LOCAL hız + yaw rate,
+  3 sn zaman aşımı), DO_REPOSITION, DO_MOTOR_TEST (A-B-C-D sırası), görev yükleme/indirme/silme, PARAM listesi/okuma/yazma
+  (WPNAV_SPEED, RTL_ALT, FENCE_RADIUS canlı uygulanır), AUTOPILOT_VERSION, GCS failsafe (FS_GCS_TIMEOUT 5 sn → RTL).
+- Gerçek ArduPilot'tan bilinçli farklar: AUTO yerde istenince simülasyon kendisi ARM edip kalkar (gerçekte AUTO_OPTIONS=0
+  iken ARM + gaz gerekir); parametre adları 4.6 (4.7'de SI adlar); konum/GPS gürültüsü yok.
+- Köprü yalnız Studio'da çalışır (canlı Roblox sunucusu kullanıcının PC'sindeki localhost'a erişemez).
 
 ### Yol Haritası
 - [ ] **Yerel köprü sunucusu**: Studio → HttpService → `localhost` Python sunucusu; JSON'u otomatik kaydedip `.plan` üretir.

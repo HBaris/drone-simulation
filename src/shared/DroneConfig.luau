@@ -139,7 +139,7 @@ local DroneConfig = {
 		LAND_SPEED_HIGH = 1.5, -- m/s above LAND_ALT_LOW (0 in ArduPilot = WPNAV_SPEED_DN)
 		LAND_ALT_LOW = 10.0,   -- m
 		YAW_RATE = 90.0,       -- deg/s
-		DISARM_DELAY = 2.0,    -- s on the ground before motors stop
+		DISARM_DELAY = 10.0,   -- s on the ground before motors stop (ArduPilot default)
 	},
 
 	-- Failsafes (ArduPilot parameter names). Voltages are the usual 3.5 / 3.3 V-per-cell setup,
@@ -151,6 +151,15 @@ local DroneConfig = {
 		FENCE_RADIUS = 300.0,  -- m from home -> RTL
 		FENCE_ALT_MAX = 100.0, -- m above home -> RTL
 		CRASH_SPEED = 3.0,     -- m/s: touching anything faster than this is a crash
+	},
+
+	-- Local MAVLink bridge (tools/mavlink_bridge.py): the sim appears to ground stations as ArduCopter.
+	-- Only reachable from Studio (localhost); needs "Allow HTTP Requests".
+	BRIDGE = {
+		ENABLED = true,
+		URL = "http://127.0.0.1:34874/sim/state",
+		RATE_HZ = 5, -- Roblox allows ~500 HTTP requests/min per server
+		RETRY_SEC = 3, -- back-off while the bridge is not running
 	},
 
 	-- Flight Blackbox Recorder (manual flights -> real drone missions)

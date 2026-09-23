@@ -12,3 +12,12 @@ python tools/sim2mission.py ucus.json --home 41.0422,29.0068 --firmware ardupilo
 - Testler: `python -m unittest discover -s tools/tests`
 
 Sadece Python standart kütüphanesi gerekir.
+
+## MAVLink köprüsü (simülasyon ↔ yer istasyonu)
+
+```bash
+python tools/mavlink_bridge.py            # Studio Play + Allow HTTP Requests açık olmalı
+python tools/gcs_smoketest.py             # TEI-Ground-Control'ün yaptıklarını sırayla dener
+```
+TEI-Ground-Control, QGroundControl veya Mission Planner'da UDP 14550'e bağlanın; simülasyon ArduCopter 4.7 quad olarak görünür.
+`pymavlink` gerekir (`pip install pymavlink`).

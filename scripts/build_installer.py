@@ -88,6 +88,12 @@ manifest = [
         "file": os.path.join(src_dir, "server", "WeatherService.server.luau")
     },
     {
+        "type": "Script",
+        "name": "BridgeLink",
+        "parent": 'game:GetService("ServerScriptService"):WaitForChild("DroneSystem")',
+        "file": os.path.join(src_dir, "server", "BridgeLink.server.luau")
+    },
+    {
         "type": "Folder",
         "name": "DroneClient",
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")',
@@ -148,6 +154,12 @@ manifest = [
         "name": "FlightEnvironment",
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
         "file": os.path.join(src_dir, 'client', 'controllers', 'FlightEnvironment.luau')
+    },
+    {
+        "type": "ModuleScript",
+        "name": "BridgeClient",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
+        "file": os.path.join(src_dir, "client", "controllers", "BridgeClient.luau")
     },
     {
         "type": "ModuleScript",

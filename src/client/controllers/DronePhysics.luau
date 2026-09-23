@@ -101,7 +101,8 @@ local function clampLength(v: Vector3, maxLen: number): Vector3
 	return if v.Magnitude > maxLen then v.Unit * maxLen else v
 end
 
-function DronePhysics.stepGuided(s: State, dt: number, desiredVelocity: Vector3, wind: Vector3)
+-- yawRateDeg: heading rate a GCS commanded (clockwise positive); nil = face the direction of travel.
+function DronePhysics.stepGuided(s: State, dt: number, desiredVelocity: Vector3, wind: Vector3, yawRateDeg: number?)
 	local dv = desiredVelocity - s.Velocity
 	local along = if desiredVelocity.Magnitude > 1e-3 then desiredVelocity.Unit else Vector3.zero
 	local dvAlong = along * dv:Dot(along)
@@ -120,7 +121,10 @@ function DronePhysics.stepGuided(s: State, dt: number, desiredVelocity: Vector3,
 	s.Position += s.Velocity * dt
 
 	local hv = Vector3.new(s.Velocity.X, 0, s.Velocity.Z)
-	if hv.Magnitude > 1.0 * S then
+	if yawRateDeg then
+		local rate = math.clamp(yawRateDeg, -AP.YAW_RATE, AP.YAW_RATE)
+		s.Yaw = (s.Yaw - rate * dt) % 360 -- sim yaw turns counter-clockwise
+	elseif hv.Magnitude > 1.0 * S then
 		local targetYaw = math.deg(math.atan2(-hv.X, -hv.Z))
 		local diff = (targetYaw - s.Yaw + 180) % 360 - 180
 		local maxStep = AP.YAW_RATE * dt

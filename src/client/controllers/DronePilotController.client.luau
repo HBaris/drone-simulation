@@ -21,6 +21,7 @@ local FlightRecorder = require(script.Parent:WaitForChild("FlightRecorder"))
 local Autopilot = require(script.Parent:WaitForChild("Autopilot"))
 local DronePhysics = require(script.Parent:WaitForChild("DronePhysics"))
 local FlightEnvironment = require(script.Parent:WaitForChild("FlightEnvironment"))
+local BridgeClient = require(script.Parent:WaitForChild("BridgeClient"))
 
 local S = DroneConfig.STUDS_PER_METER
 local FS = DroneConfig.FAILSAFE
@@ -136,9 +137,66 @@ local function resetDrone()
 	Autopilot.setMode("MANUAL", "sıfırlandı")
 end
 
+-- Ground-station motor tests (DO_MOTOR_TEST): only on the ground and disarmed
+local motorTests: { { Motor: number, Pct: number, From: number, Till: number } } = {}
+local clockNow = 0
+
+local bridgeHooks: BridgeClient.Hooks = {
+	Arm = function(): boolean
+		if Autopilot.Mode == "CRASHED" then
+			return false
+		end
+		Autopilot.arm(drone.Position)
+		return true
+	end,
+	Disarm = function(force: boolean)
+		local airborne = onGroundTimer <= 0
+		if airborne and not force then
+			return
+		end
+		Autopilot.disarm()
+		if airborne then
+			crash("ZORLA DISARM — havada motorlar durdu")
+		end
+	end,
+	Reset = function()
+		resetDrone()
+	end,
+	MotorTest = function(motor: number, pct: number, seconds: number, delay: number)
+		if not Autopilot.Armed and telemetry.Motors[motor] then
+			table.insert(motorTests, { Motor = motor, Pct = pct / 100, From = clockNow + delay, Till = clockNow + delay + seconds })
+		end
+	end,
+}
+
+local function runBridgeCommands(commands: { any })
+	for _, c in ipairs(commands) do
+		BridgeClient.execute(c, drone, bridgeHooks)
+	end
+end
+
+-- Bridge link to the server (created by BridgeLink.server; absent when that script is not installed)
+local bridgeStateEvent: RemoteEvent? = nil
+task.spawn(function()
+	local network = ReplicatedStorage:WaitForChild("DroneNetwork", 30)
+	local stateEvent = network and network:WaitForChild("BridgeState", 30)
+	local commands = network and network:WaitForChild("BridgeCommands", 30)
+	if stateEvent and commands then
+		local commandsEvent = commands :: RemoteEvent
+		commandsEvent.OnClientEvent:Connect(runBridgeCommands)
+		bridgeStateEvent = stateEvent :: RemoteEvent
+	end
+end)
+local bridgeTimer = 0
+local wasArmed = false
+local lastYaw = drone.Yaw
+local yawRate = 0
+
 commandEvent.Event:Connect(function(command: string, arg: any)
 	if command == "mission" then
 		Autopilot.startMission(arg)
+	elseif command == "exec" then
+		runBridgeCommands(if arg.type then { arg } else arg) -- bridge-format command(s), for tests
 	elseif command == "rtl" and Autopilot.Armed then
 		Autopilot.setMode("RTL", "komut")
 	elseif command == "land" and Autopilot.Armed then
@@ -273,8 +331,17 @@ local function stepFlight(dt: number)
 
 	local desired = Autopilot.guidance(dt, drone.Position, groundY)
 	if desired then
-		Autopilot.arm(drone.Position)
-		DronePhysics.stepGuided(drone, dt, desired, currentWind)
+		-- The route editor's "start" arms for AUTO; every other autonomous mode needs an armed drone
+		if Autopilot.Mode == "AUTO" then
+			Autopilot.arm(drone.Position)
+		end
+		if Autopilot.Armed then
+			DronePhysics.stepGuided(drone, dt, desired, currentWind, Autopilot.commandedYawRate())
+			return
+		end
+		if groundY then
+			drone.Position = Vector3.new(drone.Position.X, groundY, drone.Position.Z)
+		end
 		return
 	end
 
@@ -346,9 +413,14 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 		crash("ZEMİN YOK — kalkış noktasının 50 m altına indi (harita yüklenmemiş olabilir)")
 	end
 
-	-- Landed: disarm after DISARM_DELAY, the flight is over
+	-- Landed: disarm after DISARM_DELAY, the flight is over. The delay counts from arming (or
+	-- touchdown), not from how long the drone sat on the pad before.
 	local groundY = FlightEnvironment.groundY(drone.Position)
 	local onGround = groundY ~= nil and drone.Position.Y <= groundY + 0.05
+	if Autopilot.Armed and not wasArmed then
+		onGroundTimer = 0
+	end
+	wasArmed = Autopilot.Armed
 	onGroundTimer = if onGround then onGroundTimer + dt else 0
 	if onGround and Autopilot.Armed and onGroundTimer > DroneConfig.AUTOPILOT.DISARM_DELAY
 		and Autopilot.Mode ~= "AUTO" and not keysDown[Enum.KeyCode.Space] then
@@ -364,6 +436,20 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 	updateAngularAccel(dt, prevPitch, prevRoll, prevYaw)
 	local motorsRunning = Autopilot.Armed and Autopilot.Mode ~= "CRASHED"
 	DroneHealthModel.step(telemetry, dt, smoothedAccel, smoothedAngAccel, motorsRunning)
+	clockNow += dt
+	for i = #motorTests, 1, -1 do
+		local test = motorTests[i]
+		if clockNow > test.Till or Autopilot.Armed then
+			table.remove(motorTests, i)
+		elseif clockNow >= test.From then
+			local m = telemetry.Motors[test.Motor]
+			local af = DroneConfig.AIRFRAME
+			m.Output = test.Pct
+			m.Rpm = af.MAX_MOTOR_RPM * math.sqrt(test.Pct)
+			m.CurrentA = af.MAX_MOTOR_CURRENT_A * test.Pct ^ 1.5
+			telemetry.CurrentA += m.CurrentA
+		end
+	end
 	Autopilot.checkFailsafes(dt, drone.Position, telemetry.VoltageV)
 	for _, m in ipairs(telemetry.Motors) do
 		if m.Failed and Autopilot.Armed and not onGround then
@@ -440,9 +526,25 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 		telemetryOut:SetAttribute("RollDeg", drone.Roll)
 	end
 
+	-- MAVLink bridge: 5 Hz state to the server
+	yawRate = yawRate + (((lastYaw - drone.Yaw + 180) % 360 - 180) / dt - yawRate) * math.min(1, 5 * dt)
+	lastYaw = drone.Yaw
+	bridgeTimer += dt
+	local stateEvent = bridgeStateEvent
+	if stateEvent and bridgeTimer >= 1 / DroneConfig.BRIDGE.RATE_HZ then
+		bridgeTimer = 0
+		stateEvent:FireServer(BridgeClient.buildState({
+			Drone = drone, Telemetry = telemetry, Wind = currentWind, OnGround = onGround,
+			Crash = crashReason, YawRate = yawRate,
+		}))
+	end
+
 	local toHome = drone.Position - Autopilot.Home
 	local weather = ReplicatedStorage:FindFirstChild("Weather")
-	healthPanel.Update(telemetry, Autopilot.Mode, Autopilot.Status, Autopilot.LastEvent,
+	local bridge = ReplicatedStorage:FindFirstChild("Bridge")
+	local bridgeStatus = if bridge then tostring(bridge:GetAttribute("Status")) else ""
+	local panelStatus = Autopilot.Status .. (if bridgeStatus:match("^BAĞLI") then "  ·  📡 " .. bridgeStatus else "")
+	healthPanel.Update(telemetry, Autopilot.Mode, panelStatus, Autopilot.LastEvent,
 		Vector3.new(toHome.X, 0, toHome.Z).Magnitude / S, {
 			Report = WindModel.report(),
 			Station = if weather then tostring(weather:GetAttribute("Station") or "-") else "-",
@@ -451,4 +553,4 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 		})
 end)
 
-print("[DronePilotController] Drone flight controller ready (MANUAL / AUTO / RTL / LAND).")
+print("[DronePilotController] Drone flight controller ready (MANUAL / GUIDED / AUTO / RTL / LAND).")
