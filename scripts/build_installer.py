@@ -63,6 +63,12 @@ manifest = [
         "file": os.path.join(src_dir, "client", "ui", "EditorUI.luau")
     },
     {
+        "type": "ModuleScript",
+        "name": "FPVOverlay",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("ui")',
+        "file": os.path.join(src_dir, "client", "ui", "FPVOverlay.luau")
+    },
+    {
         "type": "Folder",
         "name": "visuals",
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient")',
@@ -72,6 +78,17 @@ manifest = [
         "name": "PathVisualizer",
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("visuals")',
         "file": os.path.join(src_dir, "client", "visuals", "PathVisualizer.luau")
+    },
+    {
+        "type": "Folder",
+        "name": "controllers",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient")',
+    },
+    {
+        "type": "LocalScript",
+        "name": "DronePilotController",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
+        "file": os.path.join(src_dir, "client", "controllers", "DronePilotController.client.luau")
     },
     {
         "type": "LocalScript",
@@ -90,7 +107,7 @@ manifest = [
 installer_lines = [
     "--!strict",
     "-- InstallToStudio.luau",
-    "-- Auto-generated installer for Drone Simulation System",
+    "-- Auto-generated installer for Drone Simulation System with Istanbul & FPV flight",
     'print("[DroneInstaller] Installing Drone Simulation System...")',
     "",
 ]

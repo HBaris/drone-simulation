@@ -77,8 +77,9 @@ local function syncDroneCount(count: number)
 	for id = 1, count do
 		if not activeDrones[id] then
 			local model = DroneSpawner.createQuadcopterModel(id, not isLowDetail)
-			local spawnPos = Vector3.new((id % 20) * 4, 1, math.floor(id / 20) * 4)
-			model:PivotTo(CFrame.new(spawnPos))
+			-- Drone 1 spawns at the Helipad on the European coastline
+			local spawnPos = if id == 1 then Vector3.new(-220, 3.0, 0) else Vector3.new(-220 + ((id - 1) % 10) * 3, 3.0, math.floor((id - 1) / 10) * 3)
+			model:PivotTo(CFrame.new(spawnPos) * CFrame.Angles(0, math.rad(-90), 0))
 			model.Parent = SwarmFolder
 
 			activeDrones[id] = {
@@ -93,6 +94,9 @@ local function syncDroneCount(count: number)
 		end
 	end
 end
+
+-- Initialize single drone on the Helipad by default (no automatic swarm!)
+syncDroneCount(1)
 
 -- Handle Formations
 SetFormationEvent.OnServerEvent:Connect(function(player, formationType: string, count: number, scale: number?)

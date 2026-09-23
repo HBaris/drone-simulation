@@ -45,12 +45,21 @@
             "$className": "Folder",
             "EditorUI": {
               "$path": "src/client/ui/EditorUI.luau"
+            },
+            "FPVOverlay": {
+              "$path": "src/client/ui/FPVOverlay.luau"
             }
           },
           "visuals": {
             "$className": "Folder",
             "PathVisualizer": {
               "$path": "src/client/visuals/PathVisualizer.luau"
+            }
+          },
+          "controllers": {
+            "$className": "Folder",
+            "DronePilotController": {
+              "$path": "src/client/controllers/DronePilotController.client.luau"
             }
           }
         }
