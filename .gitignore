@@ -7,3 +7,7 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+.cache/
+
+# Separate physical-drone project copied in locally (770 MB) — kept out of this repo
+rasperiypi/

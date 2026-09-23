@@ -75,10 +75,11 @@ function DroneSpawner.createQuadcopterModel(droneId: number, isHighDetail: boole
 
 	-- 3. Quadcopter Arms (X Configuration)
 	local armOffsets = {
-		Vector3.new(0.9, 0, 0.9),   -- Front-Right
-		Vector3.new(-0.9, 0, 0.9),  -- Front-Left
-		Vector3.new(0.9, 0, -0.9),  -- Rear-Right
-		Vector3.new(-0.9, 0, -0.9), -- Rear-Left
+		-- Forward is -Z. ArduPilot numbers (DroneHealthModel.MOTORS) are mapped by position.
+		Vector3.new(0.9, 0, 0.9),   -- Rear-Right (ArduPilot M4)
+		Vector3.new(-0.9, 0, 0.9),  -- Rear-Left  (ArduPilot M2)
+		Vector3.new(0.9, 0, -0.9),  -- Front-Right (ArduPilot M1)
+		Vector3.new(-0.9, 0, -0.9), -- Front-Left  (ArduPilot M3)
 	}
 
 	for i, offset in ipairs(armOffsets) do

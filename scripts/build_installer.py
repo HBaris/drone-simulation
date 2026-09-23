@@ -30,6 +30,35 @@ manifest = [
         "file": os.path.join(src_dir, "shared", "DataExporter.luau")
     },
     {
+        "type": "ModuleScript",
+        "name": "FlightPackage",
+        "parent": 'game:GetService("ReplicatedStorage")',
+        "file": os.path.join(src_dir, "shared", "FlightPackage.luau")
+    },
+    {
+        "type": "ModuleScript",
+        "name": "DroneHealthModel",
+        "parent": 'game:GetService("ReplicatedStorage")',
+        "file": os.path.join(src_dir, 'shared', 'DroneHealthModel.luau')
+    },
+    {
+        "type": "Folder",
+        "name": "MapData",
+        "parent": 'game:GetService("ServerStorage")',
+    },
+    {
+        "type": "ModuleScript",
+        "name": "OsmMapBuilder",
+        "parent": 'game:GetService("ServerStorage"):WaitForChild("MapData")',
+        "file": os.path.join(base_dir, "scripts", "maps", "OsmMapBuilder.luau")
+    },
+    {
+        "type": "ModuleScript",
+        "name": "Bahcelievler",
+        "parent": 'game:GetService("ServerStorage"):WaitForChild("MapData")',
+        "file": os.path.join(base_dir, "scripts", "maps", "Bahcelievler.luau")
+    },
+    {
         "type": "Folder",
         "name": "DroneSystem",
         "parent": 'game:GetService("ServerScriptService")',
@@ -69,6 +98,12 @@ manifest = [
         "file": os.path.join(src_dir, "client", "ui", "FPVOverlay.luau")
     },
     {
+        "type": "ModuleScript",
+        "name": "HealthPanel",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("ui")',
+        "file": os.path.join(src_dir, 'client', 'ui', 'HealthPanel.luau')
+    },
+    {
         "type": "Folder",
         "name": "visuals",
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient")',
@@ -83,6 +118,30 @@ manifest = [
         "type": "Folder",
         "name": "controllers",
         "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient")',
+    },
+    {
+        "type": "ModuleScript",
+        "name": "Autopilot",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
+        "file": os.path.join(src_dir, 'client', 'controllers', 'Autopilot.luau')
+    },
+    {
+        "type": "ModuleScript",
+        "name": "DronePhysics",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
+        "file": os.path.join(src_dir, 'client', 'controllers', 'DronePhysics.luau')
+    },
+    {
+        "type": "ModuleScript",
+        "name": "FlightEnvironment",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
+        "file": os.path.join(src_dir, 'client', 'controllers', 'FlightEnvironment.luau')
+    },
+    {
+        "type": "ModuleScript",
+        "name": "FlightRecorder",
+        "parent": 'game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts"):WaitForChild("DroneClient"):WaitForChild("controllers")',
+        "file": os.path.join(src_dir, "client", "controllers", "FlightRecorder.luau")
     },
     {
         "type": "LocalScript",
@@ -144,6 +203,13 @@ for item in manifest:
         installer_lines.append(f'end')
         installer_lines.append("")
 
+# DroneConfig.ACTIVE_SITE = "BAHCELIEVLER" launches from this map, so build it right away
+installer_lines.append('do')
+installer_lines.append('    local mapData = game:GetService("ServerStorage"):WaitForChild("MapData")')
+installer_lines.append('    require(mapData.OsmMapBuilder).build(require(mapData.Bahcelievler), Vector3.new(6000, 0, 0))')
+installer_lines.append('    print("[DroneInstaller] Built Workspace.Map_Bahcelievler (OpenStreetMap)")')
+installer_lines.append('end')
+installer_lines.append("")
 installer_lines.append('print("[DroneInstaller] ✅ Installation Complete! Ready for simulation.")')
 
 output_path = os.path.join(base_dir, "scripts", "InstallToStudio.luau")

@@ -57,11 +57,8 @@ function DataExporter.generateMissionFromPath(
 		-- Convert to meters ENU (East, North, Up)
 		local metricPos = FlightMath.studsToMetersENU(robloxPos, originRef)
 
-		-- Calculate yaw angle from forward vector
-		local yawDeg = math.deg(math.atan2(-forwardVec.X, -forwardVec.Z))
-		if yawDeg < 0 then
-			yawDeg += 360
-		end
+		-- Compass heading (0 = North, 90 = East) from the forward vector
+		local yawDeg = math.deg(math.atan2(forwardVec.X, -forwardVec.Z)) % 360
 
 		table.insert(missionPoints, {
 			t = math.round(t * 100) / 100,

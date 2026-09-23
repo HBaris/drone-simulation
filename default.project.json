@@ -15,6 +15,12 @@
       },
       "DataExporter": {
         "$path": "src/shared/DataExporter.luau"
+      },
+      "FlightPackage": {
+        "$path": "src/shared/FlightPackage.luau"
+      },
+      "DroneHealthModel": {
+        "$path": "src/shared/DroneHealthModel.luau"
       }
     },
     "ServerScriptService": {
@@ -48,6 +54,9 @@
             },
             "FPVOverlay": {
               "$path": "src/client/ui/FPVOverlay.luau"
+            },
+            "HealthPanel": {
+              "$path": "src/client/ui/HealthPanel.luau"
             }
           },
           "visuals": {
@@ -60,6 +69,18 @@
             "$className": "Folder",
             "DronePilotController": {
               "$path": "src/client/controllers/DronePilotController.client.luau"
+            },
+            "FlightRecorder": {
+              "$path": "src/client/controllers/FlightRecorder.luau"
+            },
+            "Autopilot": {
+              "$path": "src/client/controllers/Autopilot.luau"
+            },
+            "DronePhysics": {
+              "$path": "src/client/controllers/DronePhysics.luau"
+            },
+            "FlightEnvironment": {
+              "$path": "src/client/controllers/FlightEnvironment.luau"
             }
           }
         }

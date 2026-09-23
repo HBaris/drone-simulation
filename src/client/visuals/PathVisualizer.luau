@@ -38,6 +38,7 @@ function PathVisualizer.redrawTrajectory(state: VisualizerState, waypoints: { Fl
 		line.Name = "TrajectoryLine_" .. i
 		line.Anchored = true
 		line.CanCollide = false
+		line.CanQuery = false -- invisible to the drone's obstacle raycasts
 		line.Material = Enum.Material.Neon
 		line.Color = Color3.fromRGB(0, 255, 180)
 		line.Transparency = 0.3
@@ -61,6 +62,7 @@ function PathVisualizer.addMarker(state: VisualizerState, position: Vector3, ind
 	marker.Color = Color3.fromRGB(0, 255, 150)
 	marker.Anchored = true
 	marker.CanCollide = false
+	marker.CanQuery = false
 	marker.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
 
 	local bbg = Instance.new("BillboardGui")

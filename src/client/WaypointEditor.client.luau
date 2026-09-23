@@ -8,8 +8,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DroneConfig = require(ReplicatedStorage:WaitForChild("DroneConfig"))
 local FlightMath = require(ReplicatedStorage:WaitForChild("FlightMath"))
+local FlightPackage = require(ReplicatedStorage:WaitForChild("FlightPackage"))
 local EditorUI = require(script.Parent:WaitForChild("ui"):WaitForChild("EditorUI"))
 local PathVisualizer = require(script.Parent:WaitForChild("visuals"):WaitForChild("PathVisualizer"))
+local Autopilot = require(script.Parent:WaitForChild("controllers"):WaitForChild("Autopilot"))
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -84,14 +86,30 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- Waypoint Flight Controls
+-- The primary drone flies the route client-side with the Autopilot (straight legs, like the real
+-- drone). The server still receives the route for the legacy JSON/CSV export.
 ui.BtnStart.MouseButton1Click:Connect(function()
-	if #waypoints >= 2 then
+	if #waypoints >= 1 then
+		local points = {}
+		for i, wp in ipairs(waypoints) do
+			points[i] = wp.Position
+		end
+		Autopilot.startMission(points)
 		StartFlightEvent:FireServer(waypoints)
 	end
 end)
 
 ui.BtnStop.MouseButton1Click:Connect(function()
+	if Autopilot.Armed then
+		Autopilot.setMode("LAND", "DURDUR butonu")
+	end
 	StopFlightEvent:FireServer()
+end)
+
+ui.BtnRTL.MouseButton1Click:Connect(function()
+	if Autopilot.Armed then
+		Autopilot.setMode("RTL", "EVE DÖN butonu")
+	end
 end)
 
 ui.BtnClear.MouseButton1Click:Connect(function()
@@ -130,6 +148,15 @@ end)
 ui.BtnExportCSV.MouseButton1Click:Connect(function()
 	local csvString = ExportFunction:InvokeServer("CSV")
 	EditorUI.showExportModal(ui.ScreenGui, csvString, "CSV")
+end)
+
+-- Real drone export: waypoints relative to the launch pad, converted by tools/sim2mission.py
+ui.BtnExportDrone.MouseButton1Click:Connect(function()
+	if #waypoints < 1 then
+		EditorUI.showExportModal(ui.ScreenGui, "Hata: Önce haritaya en az bir waypoint ekleyin.", "Drone Rotası")
+		return
+	end
+	EditorUI.showExportModal(ui.ScreenGui, FlightPackage.encodeRoute(waypoints), "Drone Rotası → tools/sim2mission.py")
 end)
 
 print("[WaypointEditor] Controller initialized with modular UI and Visualizer.")

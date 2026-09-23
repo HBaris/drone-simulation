@@ -16,6 +16,8 @@ export type UIReferences = {
 	BtnClear: TextButton,
 	BtnExportJSON: TextButton,
 	BtnExportCSV: TextButton,
+	BtnExportDrone: TextButton,
+	BtnRTL: TextButton,
 	BtnFormHeart: TextButton,
 	BtnFormSphere: TextButton,
 	BtnFormHelix: TextButton,
@@ -127,6 +129,8 @@ function EditorUI.create(playerGui: Instance): UIReferences
 	local btnClear = createActionButton("🗑 ROTAYI TEMİZLE", 136, Color3.fromRGB(70, 75, 85), waypointFrame)
 	local btnExportJSON = createActionButton("📤 JSON DIŞA AKTAR (PX4/ESP32)", 179, Color3.fromRGB(45, 110, 200), waypointFrame)
 	local btnExportCSV = createActionButton("📊 CSV DIŞA AKTAR", 222, Color3.fromRGB(90, 60, 150), waypointFrame)
+	local btnExportDrone = createActionButton("🛰 GERÇEK DRONE'A AKTAR (Pixhawk)", 265, Color3.fromRGB(200, 120, 20), waypointFrame)
+	local btnRTL = createActionButton("🏠 EVE DÖN (RTL)", 308, Color3.fromRGB(30, 140, 160), waypointFrame)
 
 	-- Swarm Frame
 	local swarmFrame = Instance.new("Frame")
@@ -192,6 +196,8 @@ function EditorUI.create(playerGui: Instance): UIReferences
 		BtnClear = btnClear,
 		BtnExportJSON = btnExportJSON,
 		BtnExportCSV = btnExportCSV,
+		BtnExportDrone = btnExportDrone,
+		BtnRTL = btnRTL,
 		BtnFormHeart = btnFormHeart,
 		BtnFormSphere = btnFormSphere,
 		BtnFormHelix = btnFormHelix,
@@ -249,7 +255,18 @@ function EditorUI.showExportModal(parentGui: Instance, textData: string, formatN
 	end)
 
 	local textBox = Instance.new("TextBox")
-	textBox.Size = UDim2.new(1, -30, 1, -60)
+	local hint = Instance.new("TextLabel")
+	hint.Size = UDim2.new(1, -30, 0, 16)
+	hint.Position = UDim2.new(0, 15, 1, -24)
+	hint.BackgroundTransparency = 1
+	hint.Text = "Kutuya tıkla → Ctrl+A, Ctrl+C → .json dosyasına yapıştır"
+	hint.Font = Enum.Font.Gotham
+	hint.TextSize = 11
+	hint.TextColor3 = Color3.fromRGB(150, 160, 175)
+	hint.TextXAlignment = Enum.TextXAlignment.Left
+	hint.Parent = modal
+
+	textBox.Size = UDim2.new(1, -30, 1, -80)
 	textBox.Position = UDim2.new(0, 15, 0, 50)
 	textBox.BackgroundColor3 = Color3.fromRGB(15, 17, 22)
 	textBox.TextColor3 = Color3.fromRGB(200, 220, 240)

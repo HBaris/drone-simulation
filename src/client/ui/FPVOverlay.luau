@@ -157,7 +157,7 @@ function FPVOverlay.create(playerGui: Instance): FPVReferences
 
 	-- Keyboard Controls Cheat-Sheet (Top-Left)
 	local controlsHelp = Instance.new("Frame")
-	controlsHelp.Size = UDim2.new(0, 240, 0, 130)
+	controlsHelp.Size = UDim2.new(0, 240, 0, 205)
 	controlsHelp.Position = UDim2.new(0, 20, 0, 20)
 	controlsHelp.BackgroundColor3 = Color3.fromRGB(15, 18, 24)
 	controlsHelp.BackgroundTransparency = 0.3
@@ -177,9 +177,9 @@ function FPVOverlay.create(playerGui: Instance): FPVReferences
 	helpTitle.Parent = controlsHelp
 
 	local helpDesc = Instance.new("TextLabel")
-	helpDesc.Size = UDim2.new(1, -16, 0, 95)
+	helpDesc.Size = UDim2.new(1, -16, 0, 170)
 	helpDesc.Position = UDim2.new(0, 8, 0, 26)
-	helpDesc.Text = "• W / S : İleri / Geri (Pitch)\n• A / D : Sola / Sağa Yatış (Roll)\n• Space / Shift : Gaz Yüksel / Alçal\n• Q / E : Dönüş (Yaw)\n• C : Kamera Değiştir (FPV / 3rd)\n• M : Rota Editörü / Manuel Mod"
+	helpDesc.Text = "• W / S : İleri / Geri (Pitch)\n• A / D : Sola / Sağa Yatış (Roll)\n• Space / Shift : Gaz Yüksel / Alçal\n• Q / E : Dönüş (Yaw)\n• C : Kamera Değiştir (FPV / 3rd)\n• M : Rota Editörü / Manuel Mod\n• R : Uçuş Kaydı Başlat / Bitir\n• P : Kaydı Tekrar Oynat\n• H : Eve Dön (RTL)  • L : İniş\n• K : Motor-1 arızası  • B : Batarya testi\n• X : Kazadan sonra sıfırla"
 	helpDesc.TextColor3 = Color3.fromRGB(200, 210, 225)
 	helpDesc.Font = Enum.Font.Gotham
 	helpDesc.TextSize = 11

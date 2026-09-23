@@ -157,6 +157,9 @@ StopFlightEvent.OnServerEvent:Connect(function()
 	isSimulating = false
 	print("[FlightManager] Simulation stopped. Landing drones.")
 	for _, drone in pairs(activeDrones) do
+		if drone.Id == 1 then
+			continue -- flown client-side by the Autopilot (DronePilotController), which lands it itself
+		end
 		local groundPos = Vector3.new(drone.CurrentPos.X, 1.0, drone.CurrentPos.Z)
 		drone.TargetPos = groundPos
 		drone.Model:PivotTo(CFrame.new(groundPos))
