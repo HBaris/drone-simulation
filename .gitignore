@@ -1,0 +1,9 @@
+# Roblox & OS temporary files
+*.rbxlx.lock
+*.rbxl.lock
+.vscode/
+*.tmp
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

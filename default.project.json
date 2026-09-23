@@ -1,0 +1,48 @@
+{
+  "name": "DroneSimulation",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "DroneConfig": {
+        "$path": "src/shared/DroneConfig.luau"
+      },
+      "FlightMath": {
+        "$path": "src/shared/FlightMath.luau"
+      },
+      "FormationGenerator": {
+        "$path": "src/shared/FormationGenerator.luau"
+      },
+      "DataExporter": {
+        "$path": "src/shared/DataExporter.luau"
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "DroneSystem": {
+        "$className": "Folder",
+        "DroneSpawner": {
+          "$path": "src/server/DroneSpawner.luau"
+        },
+        "FlightManager": {
+          "$path": "src/server/FlightManager.server.luau"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "DroneClient": {
+          "$className": "Folder",
+          "WaypointEditor": {
+            "$path": "src/client/WaypointEditor.client.luau"
+          },
+          "DroneHUD": {
+            "$path": "src/client/DroneHUD.client.luau"
+          }
+        }
+      }
+    }
+  }
+}
