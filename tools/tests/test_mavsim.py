@@ -90,6 +90,14 @@ class EmulatorTests(unittest.TestCase):
         self.assertEqual(cmds[0]["mode"], "GUIDED")
         self.assertEqual(cmds[1], {"type": "takeoff", "alt": 10.0})
 
+    def test_takeoff_right_after_arm_ack_is_accepted(self):
+        # TEI/QGC send TAKEOFF as soon as ARM is ACKed, before the next simulator state arrives
+        self.send(self.gcs.set_mode_encode(1, mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 4))
+        self.send(self.gcs.command_long_encode(1, 1, 400, 0, 1, 0, 0, 0, 0, 0, 0))
+        self.send(self.gcs.command_long_encode(1, 1, 22, 0, 0, 0, 0, 0, 0, 0, 15))
+        self.assertEqual(self.sent("COMMAND_ACK")[-1].result, mavlink.MAV_RESULT_ACCEPTED)
+        self.assertEqual([c["type"] for c in self.emu.pop_commands()], ["mode", "arm", "takeoff"])
+
     def test_body_velocity_is_rotated_by_heading(self):
         self.state(armed=True, mode="GUIDED", heading=90.0, on_ground=False)
         mask = 0b0000011111000111  # TEI: velocity + yaw rate

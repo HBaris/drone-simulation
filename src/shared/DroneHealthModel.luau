@@ -27,6 +27,7 @@ export type MotorState = {
 	TempC: number,
 	Failed: boolean,
 	Saturated: boolean,
+	Efficiency: number, -- thrust per unit output, 1 = healthy (damaged prop / weak motor < 1)
 }
 
 export type Telemetry = {
@@ -43,7 +44,7 @@ export type Telemetry = {
 function DroneHealthModel.new(): Telemetry
 	local motors = {}
 	for i = 1, #DroneHealthModel.MOTORS do
-		motors[i] = { Output = 0, Rpm = 0, CurrentA = 0, TempC = AF.AMBIENT_TEMP_C, Failed = false, Saturated = false }
+		motors[i] = { Output = 0, Rpm = 0, CurrentA = 0, TempC = AF.AMBIENT_TEMP_C, Failed = false, Saturated = false, Efficiency = 1 }
 	end
 	return {
 		Motors = motors,
@@ -99,7 +100,8 @@ function DroneHealthModel.step(t: Telemetry, dt: number, accelMs2: Vector3, angA
 		local geom = DroneHealthModel.MOTORS[i]
 		local rad = math.rad(geom.Angle)
 		local thrust = base + rollN * math.cos(rad + math.pi / 2) + pitchN * math.cos(rad) + yawN * geom.Yaw
-		local out = if armed and not m.Failed then thrust / AF.MAX_THRUST_PER_MOTOR_N else 0
+		-- A weak motor must be driven harder for the same thrust (the attitude controller does exactly that)
+		local out = if armed and not m.Failed then thrust / (AF.MAX_THRUST_PER_MOTOR_N * m.Efficiency) else 0
 		m.Saturated = out >= 1
 		out = if armed and not m.Failed then math.clamp(out, AF.MOT_SPIN_ARM, 1) else 0
 		m.Output = out

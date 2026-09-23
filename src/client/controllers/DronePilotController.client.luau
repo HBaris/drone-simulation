@@ -162,6 +162,14 @@ local bridgeHooks: BridgeClient.Hooks = {
 	Reset = function()
 		resetDrone()
 	end,
+	Fault = function(motor: number, efficiency: number)
+		-- SIM_ENGINE_MUL style: 1 restores the motor; applies to all motors when out of range
+		for i, m in ipairs(telemetry.Motors) do
+			if i == motor then
+				m.Efficiency = math.clamp(efficiency, 0.05, 1)
+			end
+		end
+	end,
 	MotorTest = function(motor: number, pct: number, seconds: number, delay: number)
 		if not Autopilot.Armed and telemetry.Motors[motor] then
 			table.insert(motorTests, { Motor = motor, Pct = pct / 100, From = clockNow + delay, Till = clockNow + delay + seconds })

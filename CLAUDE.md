@@ -17,8 +17,10 @@ Bu dosya Claude Code tarafından doldurulacaktır. Antigravity'nin bıraktığı
 - ✅ T1 · MAVLink köprüsü: simülasyon UDP 14550'de ArduCopter 4.7 gibi görünür, TEI-Ground-Control değiştirilmeden uçurur
   (Studio'da doğrulandı: GUIDED→ARM→kalkış 15 m, gövde hız komutu, TEI biçimi görev yükleme + AUTO + RTL,
   motor testi PWM, GCS kopunca 5 sn'de RTL)
-- ⏳ T2 · Sağlık servisi (`tools/health_monitor.py`): SERVO_OUTPUT_RAW / VIBRATION / batarya → motor dengesizliği,
-  yıpranma, iç direnç — hem köprüye hem gerçek drone'a bağlanır
+- ✅ T2 · Sağlık servisi (`tools/health_monitor.py` + `dronebridge/health.py`): hover motor dengesi, tek motor teşhisi
+  (verim kaybı yüzdesi), CCW/CW, ağırlık merkezi, itki payı, doyma, iç direnç, hücreler, kalan süre, titreşim/EKF/GPS,
+  oturum geçmişi (yıpranma). Studio'da doğrulandı: SIM_ENGINE_MUL=0.85 ile M2 → "≈%14 itki kaybı (verim 0.86)";
+  iç direnç 35 mΩ (model 35 mΩ)
 - ⏳ T3 · TEI GCS'e motor/sağlık paneli + .waypoints/.plan içe/dışa aktarma
 - ⏳ T4 · Simülasyon ayarlarından ArduCopter 4.7 başlangıç `.param` dosyası (+ drone'un kendi dökümüyle karşılaştırma)
 - ⏳ T5 · Güvenlik: `tei_kopru.py` için kimlik doğrulama / MAVLink2 imzalama önerisi, GCS failsafe
@@ -79,7 +81,7 @@ Tasarım kararları:
   `require(OsmMapBuilder).build(require(Bahcelievler), Vector3.new(6000, 0, 0))` → `Workspace.Map_Bahcelievler`.
 - `DroneConfig.ACTIVE_SITE = "BAHCELIEVLER"`: drone pedden kalkar; kayıtlar `home_geo` (pedin GPS'i) taşır, böylece
   `sim2mission.py` `--home` olmadan görevi tam simüle edilen yere koyar.
-- Sınırlamalar: arazi düz kabul ediliyor (DEM yok); OSM'de yüksekliği olmayan binalar (hastane dahil) 12 m varsayıldı;
+- Sınırlamalar: arazi SRTM 30 m (bkz. Arazi bölümü); OSM'de yüksekliği olmayan binalar (hastane dahil) 12 m varsayıldı;
   çatı şekilleri, ağaçlar, direkler, elektrik hatları yok.
 - Test kanalı: istemcide `ReplicatedStorage.DroneCommand` (BindableEvent: "mission" {Vector3}, "rtl", "land", "reset")
   ve `ReplicatedStorage.DroneTelemetry` öznitelikleri (Mode, Status, Position, AltM, SpeedMs, VoltageV, Motor1-4…).
@@ -162,6 +164,17 @@ Kalanlar:
 - Gerçek ArduPilot'tan bilinçli farklar: AUTO yerde istenince simülasyon kendisi ARM edip kalkar (gerçekte AUTO_OPTIONS=0
   iken ARM + gaz gerekir); parametre adları 4.6 (4.7'de SI adlar); konum/GPS gürültüsü yok.
 - Köprü yalnız Studio'da çalışır (canlı Roblox sunucusu kullanıcının PC'sindeki localhost'a erişemez).
+
+### Sağlık Servisi (T2) — kullanım
+- Simülasyon: `python tools/mavlink_bridge.py --also udpout:127.0.0.1:14551` + `python tools/health_monitor.py`
+  (GCS 14550'de, izleyici 14551'de aynı anda).
+- Gerçek drone: TEI GCS kapalıyken `--url udpin:0.0.0.0:14550`, ya da Pi'de `--url /dev/serial0 --baud 57600`
+  (seri port paylaşımı için mavlink-router önerilir). İzleyici salt okunur, hiçbir mesaj göndermez.
+- Arıza enjeksiyonu (SITL ile aynı adlar): PARAM_SET `SIM_ENGINE_FAIL` (0 tabanlı motor) + `SIM_ENGINE_MUL` (1 = sağlam).
+- Teşhis mantığı: medyana göre tek motor sapıyorsa → o motor + verim tahmini (CCW/CW ve CG uyarıları bastırılır);
+  çift farkı → montaj/yaw; ön-arka/sağ-sol → ağırlık merkezi. İç direnç ardışık örnek farklarından (dV = -R·dI).
+- Oturumlar `.cache/health_history.json`'a yazılır; hover gazı ilk oturumlara göre %5+ artarsa yıpranma uyarısı.
+- Gerçek drone'da ek: VIBRATION (>30/60 m/s²), clipping, EKF varyansı, GPS uydu/HDOP — simülasyon bunları üretmez.
 
 ### Yol Haritası
 - [ ] **Yerel köprü sunucusu**: Studio → HttpService → `localhost` Python sunucusu; JSON'u otomatik kaydedip `.plan` üretir.

@@ -21,3 +21,11 @@ python tools/gcs_smoketest.py             # TEI-Ground-Control'ün yaptıkların
 ```
 TEI-Ground-Control, QGroundControl veya Mission Planner'da UDP 14550'e bağlanın; simülasyon ArduCopter 4.7 quad olarak görünür.
 `pymavlink` gerekir (`pip install pymavlink`).
+
+## Sağlık izleyici (salt okunur)
+
+```bash
+python tools/mavlink_bridge.py --also udpout:127.0.0.1:14551   # simülasyon: GCS + izleyici
+python tools/health_monitor.py --label "yeni pervaneler"         # oturum raporu + geçmişle kıyas
+```
+Gerçek drone'da: `--url udpin:0.0.0.0:14550` (GCS kapalıyken) veya Pi'de `--url /dev/serial0 --baud 57600`.

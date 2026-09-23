@@ -37,6 +37,8 @@ DEFAULT_PARAMS = {
     "BATT_FS_LOW_ACT": 2, "BATT_FS_CRT_ACT": 1, "BATT_LOW_TIMER": 10,
     "FENCE_ENABLE": 1, "FENCE_TYPE": 3, "FENCE_RADIUS": 300, "FENCE_ALT_MAX": 100, "FENCE_ACTION": 1,
     "FS_GCS_ENABLE": 1, "FS_GCS_TIMEOUT": 5, "DISARM_DELAY": 10, "MOT_SPIN_ARM": 0.10,
+    # ArduPilot SITL fault injection: motor index (0-based) and its thrust multiplier (1 = healthy)
+    "SIM_ENGINE_FAIL": 0, "SIM_ENGINE_MUL": 1.0,
 }
 # Parameters the simulator applies live (name -> simulator setting, unit conversion)
 SIM_PARAMS = {"WPNAV_SPEED": ("cruise_speed", 0.01), "RTL_ALT": ("rtl_alt", 0.01), "FENCE_RADIUS": ("fence_radius", 1)}
@@ -88,6 +90,9 @@ class ArduCopterEmulator:
         self.last_event = ""
         self.tick = 0
         self.seq_map = []  # simulator waypoint index -> mission seq
+        # ArduPilot arms synchronously (ACK = armed); the simulator reports it one state update later,
+        # so an accepted ARM counts as armed for a moment (a TAKEOFF right after the ACK must work)
+        self.armed_pending_until = 0.0
 
     # ------------------------------------------------------------------ helpers
     def ms(self):
@@ -317,6 +322,9 @@ class ArduCopterEmulator:
     def on_COMMAND_INT(self, msg):
         self.run_command(msg.command, [msg.param1, msg.param2, msg.param3, msg.param4, msg.x / 1e7, msg.y / 1e7, msg.z])
 
+    def is_armed(self):
+        return bool((self.state or {}).get("armed")) or self.clock() < self.armed_pending_until
+
     def run_command(self, command, p):
         s = self.state or {}
         result = MAV_RESULT_ACCEPTED
@@ -329,6 +337,7 @@ class ArduCopterEmulator:
                     pass
                 else:
                     self.push("arm")
+                    self.armed_pending_until = self.clock() + 1.5
             else:
                 if s.get("armed") and not s.get("on_ground") and int(p[1]) != FORCE_ARM_MAGIC:
                     self.text("Disarm reddedildi: havada", "WARNING")
@@ -336,7 +345,7 @@ class ArduCopterEmulator:
                 else:
                     self.push("disarm")
         elif command == CMD["NAV_TAKEOFF"]:
-            if not s.get("armed"):
+            if not self.is_armed():
                 result = MAV_RESULT_DENIED
                 self.text("Takeoff: önce ARM", "WARNING")
             elif SIM_MODE_FOR.get(self.requested_mode) != "GUIDED" and s.get("mode") != "GUIDED":
@@ -434,6 +443,8 @@ class ArduCopterEmulator:
         if name in SIM_PARAMS:
             setting, scale = SIM_PARAMS[name]
             self.push("param", name=setting, value=msg.param_value * scale)
+        if name in ("SIM_ENGINE_FAIL", "SIM_ENGINE_MUL"):
+            self.push("fault", motor=int(self.params["SIM_ENGINE_FAIL"]) + 1, efficiency=float(self.params["SIM_ENGINE_MUL"]))
         self.send_param(name, self.param_names.index(name))
 
     def send_param(self, name, index):

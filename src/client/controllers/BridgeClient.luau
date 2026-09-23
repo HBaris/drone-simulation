@@ -28,6 +28,7 @@ export type Hooks = {
 	Disarm: (force: boolean) -> (),
 	Reset: () -> (),
 	MotorTest: (motor: number, pct: number, seconds: number, delay: number) -> (),
+	Fault: (motor: number, efficiency: number) -> (),
 }
 
 function BridgeClient.enuToSim(e: number, n: number, u: number): Vector3
@@ -112,6 +113,8 @@ function BridgeClient.execute(c: { [string]: any }, drone: any, hooks: Hooks)
 		if hooks.Arm() then
 			Autopilot.startMission(points, { TakeoffAlt = c.takeoff_alt, Holds = holds, Speeds = speeds, End = c["end"] })
 		end
+	elseif kind == "fault" then
+		hooks.Fault(c.motor, c.efficiency)
 	elseif kind == "motortest" then
 		hooks.MotorTest(c.motor, c.pct, c.seconds, c.delay or 0)
 	elseif kind == "param" then

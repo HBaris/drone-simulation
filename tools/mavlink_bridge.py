@@ -37,16 +37,32 @@ def import_pymavlink():
     return mavutil
 
 
+class Fanout:
+    """File-like: every MAVLink packet the emulator writes goes to all links (GCS + monitors)."""
+
+    def __init__(self, links):
+        self.links = links
+
+    def write(self, buf):
+        for link in self.links:
+            try:
+                link.write(buf)
+            except OSError:
+                pass  # a listener that is not running yet
+
+
 class Bridge:
-    def __init__(self, gcs_url, home, esc_telemetry):
+    def __init__(self, gcs_url, home, esc_telemetry, extra_urls=()):
         mavutil = import_pymavlink()
         from dronebridge.mavsim import ArduCopterEmulator
         self.mavutil = mavutil
-        self.link = mavutil.mavlink_connection(gcs_url, source_system=1, source_component=1, dialect="ardupilotmega")
-        self.link.mav.srcSystem, self.link.mav.srcComponent = 1, 1
+        self.links = [mavutil.mavlink_connection(url, source_system=1, source_component=1, dialect="ardupilotmega")
+                      for url in (gcs_url, *extra_urls)]
+        self.link = self.links[0]
+        self.out = mavutil.mavlink.MAVLink(Fanout(self.links), srcSystem=1, srcComponent=1)
         self.home = home
         self.esc_telemetry = esc_telemetry
-        self.emu = None if home is None else ArduCopterEmulator(self.link.mav, *home, esc_telemetry=esc_telemetry)
+        self.emu = None if home is None else ArduCopterEmulator(self.out, *home, esc_telemetry=esc_telemetry)
         self.lock = threading.Lock()
         self.last_state_time = None
         self.running = True
@@ -57,7 +73,7 @@ class Bridge:
             if not geo:
                 return False
             from dronebridge.mavsim import ArduCopterEmulator
-            self.emu = ArduCopterEmulator(self.link.mav, geo[0], geo[1], geo[2] if len(geo) > 2 else 0.0,
+            self.emu = ArduCopterEmulator(self.out, geo[0], geo[1], geo[2] if len(geo) > 2 else 0.0,
                                           esc_telemetry=self.esc_telemetry)
             print(f"[bridge] Home (simülasyon pedi): {geo}")
         return True
@@ -76,12 +92,16 @@ class Bridge:
                 "gcs_age": gcs_age}
 
     def receive(self):
-        try:
-            return self.link.recv_match(blocking=False)
-        except OSError:
-            # Windows raises WinError 10022 on recvfrom before the UDP socket has sent anything,
-            # and 10054 when the GCS port is closed; both just mean "nothing to read yet".
-            return None
+        for link in self.links:
+            try:
+                msg = link.recv_match(blocking=False)
+            except OSError:
+                # Windows raises WinError 10022 on recvfrom before the UDP socket has sent anything,
+                # and 10054 when the GCS port is closed; both just mean "nothing to read yet".
+                msg = None
+            if msg is not None:
+                return msg
+        return None
 
     def mavlink_loop(self):
         next_tick = time.monotonic()
@@ -138,6 +158,8 @@ def make_handler(bridge):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gcs", default="udpout:127.0.0.1:14550", help="pymavlink connection string to the ground station")
+    ap.add_argument("--also", action="append", default=[],
+                    help="extra MAVLink output, e.g. udpout:127.0.0.1:14551 for tools/health_monitor.py (repeatable)")
     ap.add_argument("--http-port", type=int, default=34874)
     ap.add_argument("--home", help="lat,lon,amsl — only for sites without home_geo")
     ap.add_argument("--esc-telemetry", action="store_true",
@@ -146,10 +168,10 @@ def main(argv=None):
     home = tuple(float(v) for v in args.home.split(",")) if args.home else None
 
     sys.path.insert(0, str(ROOT))
-    bridge = Bridge(args.gcs, home, args.esc_telemetry)
+    bridge = Bridge(args.gcs, home, args.esc_telemetry, args.also)
     threading.Thread(target=bridge.mavlink_loop, daemon=True).start()
     server = ThreadingHTTPServer(("127.0.0.1", args.http_port), make_handler(bridge))
-    print(f"[bridge] Roblox → http://127.0.0.1:{args.http_port}/sim/state   |   MAVLink → {args.gcs}")
+    print(f"[bridge] Roblox → http://127.0.0.1:{args.http_port}/sim/state   |   MAVLink → {', '.join([args.gcs, *args.also])}")
     print("[bridge] Studio'da Play'e basın; TEI-Ground-Control'de kaynak: UDP, bağlan.")
     try:
         server.serve_forever()
