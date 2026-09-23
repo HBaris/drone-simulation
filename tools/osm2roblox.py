@@ -7,7 +7,9 @@ Example:
 Buildings keep their real footprint: near-rectangular ones become one oriented box, other shapes
 are ear-clipped into triangles (built from wedge pairs in Roblox). Heights come from `height`,
 else `building:levels` x 3 m, else a default. Map data (c) OpenStreetMap contributors, ODbL.
-Terrain elevation is not included yet (the area is treated as flat).
+With --terrain, SRTM 30 m elevation (OpenTopoData, free) is sampled on a grid, lightly smoothed
+(in cities SRTM partly includes rooftops) and everything is placed on it: buildings stand on the
+lowest ground under their footprint, roads and parks follow the slope.
 """
 
 import argparse
@@ -15,6 +17,7 @@ import json
 import math
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -26,6 +29,7 @@ from dronebridge.geo import enu_to_geodetic, geodetic_to_enu
 OVERPASS_SERVERS = ["https://overpass-api.de/api/interpreter",
                     "https://overpass.kumi.systems/api/interpreter",
                     "https://overpass.private.coffee/api/interpreter"]
+DEM_URL = "https://api.opentopodata.org/v1/srtm30m"  # 100 points / request, 1 request / s
 STUDS_PER_METER = 3.5
 LEVEL_HEIGHT_M = 3.0
 DEFAULT_HEIGHT_M = 12.0  # typical 4-storey Istanbul apartment when OSM has no height
@@ -56,6 +60,67 @@ def fetch(lat, lon, radius, focus_way):
               f'way["landuse"~"grass|recreation_ground|village_green"]{around};'
               f'{f"way({focus_way});" if focus_way else ""});out tags geom;')
     return {"elements": _overpass(buildings) + _overpass(others)}
+
+
+# ---------- terrain ----------
+
+class Terrain:
+    """Heights (m, relative to the map centre) on a regular east/north grid, bilinear lookup."""
+
+    def __init__(self, half, step, heights):
+        self.half, self.step, self.h = half, step, heights  # heights[j][i]: j = north index, i = east index
+        self.n = len(heights)
+
+    @classmethod
+    def flat(cls):
+        return cls(0, 1, [[0.0]])
+
+    def at(self, e, n):
+        if self.n == 1:
+            return self.h[0][0]
+        fi = min(max((e + self.half) / self.step, 0), self.n - 1.001)
+        fj = min(max((n + self.half) / self.step, 0), self.n - 1.001)
+        i, j = int(fi), int(fj)
+        ti, tj = fi - i, fj - j
+        h = self.h
+        return (h[j][i] * (1 - ti) * (1 - tj) + h[j][i + 1] * ti * (1 - tj)
+                + h[j + 1][i] * (1 - ti) * tj + h[j + 1][i + 1] * ti * tj)
+
+
+def fetch_dem(lat0, lon0, half, step):
+    """Absolute SRTM elevations (m AMSL) on the grid, as heights[j][i]."""
+    count = int(round(2 * half / step)) + 1
+    coords = []
+    for j in range(count):
+        for i in range(count):
+            lat, lon, _ = enu_to_geodetic(-half + i * step, -half + j * step, 0, lat0, lon0)
+            coords.append(f"{lat:.6f},{lon:.6f}")
+    values = []
+    for k in range(0, len(coords), 100):
+        url = f"{DEM_URL}?locations={'|'.join(coords[k:k + 100])}"
+        req = urllib.request.Request(url, headers={"User-Agent": "drone-simulation-osm2roblox/0.1"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            values += [res["elevation"] or 0.0 for res in json.load(r)["results"]]
+        time.sleep(1.1)
+    return [values[j * count:(j + 1) * count] for j in range(count)]
+
+
+def min_filter(grid):
+    """3x3 minimum: SRTM is a surface model that partly sees rooftops in cities, the lowest sample
+    in a ~90 m window is usually street level, so this approximates bare ground (DSM -> DTM)."""
+    n = len(grid)
+    return [[min(grid[y][x] for y in range(max(0, j - 1), min(n, j + 2)) for x in range(max(0, i - 1), min(n, i + 2)))
+             for i in range(n)] for j in range(n)]
+
+
+def smooth(grid):
+    n = len(grid)
+    out = [[0.0] * n for _ in range(n)]
+    for j in range(n):
+        for i in range(n):
+            cells = [grid[y][x] for y in range(max(0, j - 1), min(n, j + 2)) for x in range(max(0, i - 1), min(n, i + 2))]
+            out[j][i] = sum(cells) / len(cells)
+    return out
 
 
 # ---------- geometry helpers (2D, meters: x = east, y = north) ----------
@@ -202,7 +267,12 @@ def s(v):
     return f"{v * STUDS_PER_METER:.1f}".rstrip("0").rstrip(".")
 
 
-def build(data, lat0, lon0, radius, focus_way):
+def build(data, lat0, lon0, radius, focus_way, terrain=None):
+    terrain = terrain or Terrain.flat()
+
+    def ty(p):  # terrain height under a point, in studs
+        return s(terrain.at(p[0], p[1]))
+
     focus = []
     buildings, roads, greens = [], [], []
     for el in data["elements"]:
@@ -229,29 +299,30 @@ def build(data, lat0, lon0, radius, focus_way):
         cy = sum(p[1] for p in ring) / len(ring)
         flag = 1 if focus and point_in_poly((cx, cy), focus) else 0
         stats["focus"] += flag
+        base = s(min(terrain.at(*p) for p in ring))  # stands on the lowest ground under it
         rect = min_area_rect(ring)
         fill = area(ring) / rect[5] if rect[5] > 0 else 1
         pieces = None if fill >= 0.85 else ear_clip(ring)
         if pieces:
             stats["tri"] += 1
             for a, b, c in pieces:
-                tris.append(" ".join([s(a[0]), s(-a[1]), s(b[0]), s(-b[1]), s(c[0]), s(-c[1]), s(h), str(flag)]))
+                tris.append(" ".join([s(a[0]), s(-a[1]), s(b[0]), s(-b[1]), s(c[0]), s(-c[1]), s(h), str(flag), base]))
         else:
             stats["box" if fill >= 0.85 else "fallback"] += 1
             bx, by, w, d, ang = rect[:5]
             # Roblox: X = east, Z = south; yaw about +Y turns X toward -Z, i.e. east toward north
-            boxes.append(" ".join([s(bx), s(-by), s(w), s(d), f"{ang:.4f}", s(h), str(flag)]))
+            boxes.append(" ".join([s(bx), s(-by), s(w), s(d), f"{ang:.4f}", s(h), str(flag), base]))
 
     road_segs = []
     for line, width in roads:
         for a, b in zip(line, line[1:]):
             if math.hypot(*a) < radius + 50 or math.hypot(*b) < radius + 50:
-                road_segs.append(" ".join([s(a[0]), s(-a[1]), s(b[0]), s(-b[1]), s(width)]))
+                road_segs.append(" ".join([s(a[0]), s(-a[1]), s(b[0]), s(-b[1]), s(width), ty(a), ty(b)]))
 
     green_tris = []
     for ring in greens:
         for a, b, c in (ear_clip(ring) or []):
-            green_tris.append(" ".join([s(a[0]), s(-a[1]), s(b[0]), s(-b[1]), s(c[0]), s(-c[1])]))
+            green_tris.append(" ".join([s(a[0]), s(-a[1]), s(b[0]), s(-b[1]), s(c[0]), s(-c[1]), ty(a), ty(b), ty(c)]))
 
     home = pick_home([b[0] for b in buildings], greens, focus, radius)
     return boxes, tris, road_segs, green_tris, home, stats
@@ -275,8 +346,17 @@ def pick_home(footprints, greens, focus, radius, clearance=12.0):
     return best[1] if best else target
 
 
-def write_module(path, name, label, lat0, lon0, radius, boxes, tris, roads, greens, home):
+def write_module(path, name, label, lat0, lon0, radius, boxes, tris, roads, greens, home, terrain, center_amsl):
     hlat, hlon, _ = enu_to_geodetic(home[0], home[1], 0, lat0, lon0)
+    home_h = terrain.at(*home)
+    terrain_fields = []
+    if terrain.n > 1:
+        flat = [s(v) for row in terrain.h for v in row]
+        terrain_fields = [
+            f"\t-- Terrain grid: {terrain.n}x{terrain.n} points, row-major from south-west, heights relative to the centre",
+            f"\tTerrain = {{ Count = {terrain.n}, Step = {s(terrain.step)}, Half = {s(terrain.half)} }},",
+            f'\tTerrainHeights = "{" ".join(flat)}",',
+        ]
     lines = [
         f"-- AUTO-GENERATED by tools/osm2roblox.py — do not edit by hand.",
         f"-- Map data (c) OpenStreetMap contributors, ODbL 1.0 (https://www.openstreetmap.org/copyright).",
@@ -285,10 +365,11 @@ def write_module(path, name, label, lat0, lon0, radius, boxes, tris, roads, gree
         f'\tFocusLabel = "{label or name}",',
         f"\tCenterGeo = {{ {lat0}, {lon0} }},",
         f"\tRadius = {radius * STUDS_PER_METER:.0f},",
-        f"\tHome = Vector3.new({s(home[0])}, 0, {s(-home[1])}), -- launch pad, relative to the map origin",
-        f"\tHomeGeo = {{ {hlat:.7f}, {hlon:.7f} }},",
-        "\t-- Boxes: cx cz width depth yaw height focus ; Tris: x1 z1 x2 z2 x3 z3 height focus",
-        "\t-- Roads: x1 z1 x2 z2 width ; Green: x1 z1 x2 z2 x3 z3   (studs, relative to origin)",
+        f"\tHome = Vector3.new({s(home[0])}, {s(home_h)}, {s(-home[1])}), -- launch pad (ground), relative to the map origin",
+        f"\tHomeGeo = {{ {hlat:.7f}, {hlon:.7f}, {center_amsl + home_h:.1f} }}, -- lat, lon, ground m AMSL",
+        "\t-- Boxes: cx cz width depth yaw height focus baseY ; Tris: x1 z1 x2 z2 x3 z3 height focus baseY",
+        "\t-- Roads: x1 z1 x2 z2 width y1 y2 ; Green: x1 z1 x2 z2 x3 z3 y1 y2 y3   (studs, relative to origin)",
+        *terrain_fields,
         f'\tBoxes = "{";".join(boxes)}",',
         f'\tTris = "{";".join(tris)}",',
         f'\tRoads = "{";".join(roads)}",',
@@ -297,7 +378,7 @@ def write_module(path, name, label, lat0, lon0, radius, boxes, tris, roads, gree
     ]
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return hlat, hlon
+    return hlat, hlon, home_h
 
 
 def main(argv=None):
@@ -308,7 +389,9 @@ def main(argv=None):
     ap.add_argument("--focus-way", type=int, help="OSM way id of the area to highlight (e.g. the hospital)")
     ap.add_argument("--focus-label", help="label shown above the highlighted area")
     ap.add_argument("-o", "--output", type=Path, required=True)
-    ap.add_argument("--cache", type=Path, help="save/load the raw Overpass JSON here")
+    ap.add_argument("--cache", type=Path, help="save/load the raw Overpass JSON here (DEM goes next to it)")
+    ap.add_argument("--terrain", action="store_true", help="add SRTM 30 m terrain elevation")
+    ap.add_argument("--terrain-step", type=float, default=30.0, help="m between elevation samples")
     args = ap.parse_args(argv)
     lat0, lon0 = (float(v) for v in args.center.split(","))
 
@@ -319,11 +402,31 @@ def main(argv=None):
         if args.cache:
             args.cache.write_text(json.dumps(data), encoding="utf-8")
 
-    boxes, tris, roads, greens, home, stats = build(data, lat0, lon0, args.radius, args.focus_way)
-    hlat, hlon = write_module(args.output, args.name, args.focus_label, lat0, lon0, args.radius, boxes, tris, roads, greens, home)
+    terrain, center_amsl = Terrain.flat(), 0.0
+    if args.terrain:
+        half = args.radius + 60
+        dem_cache = args.cache.with_name(args.cache.stem + "_dem.json") if args.cache else None
+        if dem_cache and dem_cache.exists():
+            dem = json.loads(dem_cache.read_text(encoding="utf-8"))
+        else:
+            dem = fetch_dem(lat0, lon0, half, args.terrain_step)
+            if dem_cache:
+                dem_cache.write_text(json.dumps(dem), encoding="utf-8")
+        grid = smooth(min_filter(dem))
+        mid = len(grid) // 2
+        center_amsl = grid[mid][mid]
+        terrain = Terrain(half, args.terrain_step, [[v - center_amsl for v in row] for row in grid])
+        flat = [v for row in terrain.h for v in row]
+        print(f"Arazi: {terrain.n}x{terrain.n} SRTM noktası, merkez {center_amsl:.1f} m AMSL, "
+              f"yükseklik farkı {min(flat):+.1f} … {max(flat):+.1f} m")
+
+    boxes, tris, roads, greens, home, stats = build(data, lat0, lon0, args.radius, args.focus_way, terrain)
+    hlat, hlon, home_h = write_module(args.output, args.name, args.focus_label, lat0, lon0, args.radius,
+                                      boxes, tris, roads, greens, home, terrain, center_amsl)
     print(f"Binalar: {stats['box']} kutu + {stats['tri']} üçgenlenmiş ({len(tris)} üçgen) + {stats['fallback']} yedek kutu; "
           f"odak alanında {stats['focus']} bina | {len(roads)} yol parçası | {len(greens)} yeşil üçgen")
-    print(f"Kalkış noktası: {home[0]:.1f} m doğu, {home[1]:.1f} m kuzey → {hlat:.6f}, {hlon:.6f}")
+    print(f"Kalkış noktası: {home[0]:.1f} m doğu, {home[1]:.1f} m kuzey, zemin {home_h:+.1f} m "
+          f"({center_amsl + home_h:.1f} m AMSL) → {hlat:.6f}, {hlon:.6f}")
     print(f"Yazıldı: {args.output} ({args.output.stat().st_size // 1024} KB)")
     return 0
 

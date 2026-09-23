@@ -7,9 +7,14 @@
 -- launch pad's GPS position so exported flights can be placed exactly where they were simulated.
 local SITES = {
 	-- Fictional Bosphorus demo map (scripts/BuildIstanbulMap.luau) — NOT to scale
-	ISTANBUL_DEMO = { HOME = Vector3.new(-220, 4.0, 0), HOME_GEO = nil :: { number }? },
+	ISTANBUL_DEMO = { HOME = Vector3.new(-220, 4.0, 0), HOME_GEO = nil :: { number }?, WEATHER_GEO = { 41.045, 29.034 } },
 	-- Real Bahçelievler around the state hospital, map origin (6000, 0, 0); pad from osm2roblox
-	BAHCELIEVLER = { HOME = Vector3.new(6000 - 273.7, 0.7, -115.8), HOME_GEO = { 41.0065415, 28.8434376 } },
+	-- HOME_GEO = { lat, lon, ground m AMSL } of the pad (SRTM terrain; 0.7 stud = pad + landing gear)
+	BAHCELIEVLER = {
+		HOME = Vector3.new(6000 - 273.7, 33.2 + 0.7, -115.8),
+		HOME_GEO = { 41.0065415, 28.8434376, 34.8 },
+		WEATHER_GEO = { 41.0065415, 28.8434376 },
+	},
 }
 local ACTIVE_SITE = "BAHCELIEVLER"
 
@@ -76,20 +81,42 @@ local DroneConfig = {
 	ACTIVE_SITE = ACTIVE_SITE,
 	HOME = {
 		SIM_POSITION = SITES[ACTIVE_SITE].HOME, -- launch pad (drone resting height)
-		GEO = SITES[ACTIVE_SITE].HOME_GEO, -- { lat, lon } of the pad for real-world sites, else nil
+		GEO = SITES[ACTIVE_SITE].HOME_GEO, -- { lat, lon, AMSL } of the pad for real-world sites, else nil
 	},
 
-	-- Airframe & power system. ESTIMATES for a ~10" Pixhawk quad until the real drone's specs are
-	-- known (see CLAUDE.md "Açık Sorular"). Motor numbering follows ArduPilot Quad-X.
+	-- Live weather (server WeatherService). Needs "Allow HTTP Requests" in Game Settings > Security.
+	WEATHER = {
+		MODE = "LIVE", -- "LIVE" or "MANUAL"
+		GEO = SITES[ACTIVE_SITE].WEATHER_GEO,
+		-- Observed wind first: METAR stations nearest to the site (LTBA Atatürk ~3 km from Bahçelievler)
+		METAR_STATIONS = { "LTBA", "LTFJ", "LTFM" },
+		METAR_MAX_AGE_MIN = 90,
+		REFRESH_SEC = 600, -- MET Norway asks clients not to poll more often than their data updates
+		MANUAL = { SPEED_MS = 0, FROM_DEG = 0, GUST_MS = 0 },
+		-- Wind profile: 10 m reports (open airport / model grid, z0 ~0.03 m) carried to a 100 m blending
+		-- height, then down again over the city with urban roughness.
+		SOURCE_Z0_M = 0.03,
+		SITE_Z0_M = 1.0,
+		BLEND_HEIGHT_M = 100,
+		TURBULENCE_INTENSITY = 0.25, -- sigma / mean over a city when no gust is reported
+		EDDY_LENGTH_M = 40,
+		STRONG_WIND_MS = 10, -- panel warning threshold at flight altitude
+	},
+
+	-- Airframe & power system: "TEI F450 Otonom Devriye İHA" (rasperiypi/ docs): F450 Quad-X,
+	-- 4x MT2808 (KV unknown), 10" 3-blade props, Skywalker 30 A PWM ESCs, 4S 5000 mAh,
+	-- Power Module V1.0, Pixhawk 2.4.8 + Raspberry Pi 5 + IMX500 camera + Storm32 gimbal.
+	-- Values marked "est." are estimates until measured. Motor numbering follows ArduPilot Quad-X.
 	AIRFRAME = {
-		MASS_KG = 1.5,
-		MAX_THRUST_PER_MOTOR_N = 11.0, -- ~1.1 kg per motor -> ~3:1 thrust/weight
-		MAX_MOTOR_RPM = 9500,
-		MAX_MOTOR_CURRENT_A = 22.0,
-		AVIONICS_CURRENT_A = 0.6, -- Pixhawk + Raspberry Pi + GPS + telemetry radio
-		ARM_LENGTH_M = 0.25,
-		INERTIA_KGM2 = 0.03,
-		DRAG_COEFF = 0.035, -- m/s² per (m/s)²: ~20° lean at 10 m/s
+		MASS_KG = 2.1, -- all-up weight estimate from the build guide
+		MAX_THRUST_PER_MOTOR_N = 9.27, -- guide: thrust/weight ~1.8 -> hover ~55 % (est.)
+		MAX_MOTOR_RPM = 9500, -- est.: MT2808 KV unknown
+		MAX_MOTOR_CURRENT_A = 15.0, -- est.: gives ~26 A hover, ~9 min usable flight
+		AVIONICS_CURRENT_A = 1.5, -- Pixhawk + Pi 5 + IMX500 + GPS + gimbal at 14.8 V (est.)
+		ESC_TELEMETRY = false, -- Skywalker PWM ESCs report nothing; per-motor values are estimates
+		ARM_LENGTH_M = 0.225, -- F450: 450 mm motor-to-motor diagonal
+		INERTIA_KGM2 = 0.035,
+		DRAG_COEFF = 0.04, -- m/s² per (m/s)²: ~22° lean at 10 m/s (frame + gimbal, est.)
 		MOT_SPIN_ARM = 0.10, -- ArduPilot default idle output when armed
 		AMBIENT_TEMP_C = 22,
 		BATTERY_CELLS = 4,

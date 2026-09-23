@@ -42,6 +42,12 @@ manifest = [
         "file": os.path.join(src_dir, 'shared', 'DroneHealthModel.luau')
     },
     {
+        "type": "ModuleScript",
+        "name": "WindModel",
+        "parent": 'game:GetService("ReplicatedStorage")',
+        "file": os.path.join(src_dir, "shared", "WindModel.luau")
+    },
+    {
         "type": "Folder",
         "name": "MapData",
         "parent": 'game:GetService("ServerStorage")',
@@ -74,6 +80,12 @@ manifest = [
         "name": "FlightManager",
         "parent": 'game:GetService("ServerScriptService"):WaitForChild("DroneSystem")',
         "file": os.path.join(src_dir, "server", "FlightManager.server.luau")
+    },
+    {
+        "type": "Script",
+        "name": "WeatherService",
+        "parent": 'game:GetService("ServerScriptService"):WaitForChild("DroneSystem")',
+        "file": os.path.join(src_dir, "server", "WeatherService.server.luau")
     },
     {
         "type": "Folder",

@@ -21,6 +21,9 @@
       },
       "DroneHealthModel": {
         "$path": "src/shared/DroneHealthModel.luau"
+      },
+      "WindModel": {
+        "$path": "src/shared/WindModel.luau"
       }
     },
     "ServerScriptService": {
@@ -32,6 +35,9 @@
         },
         "FlightManager": {
           "$path": "src/server/FlightManager.server.luau"
+        },
+        "WeatherService": {
+          "$path": "src/server/WeatherService.server.luau"
         }
       }
     },

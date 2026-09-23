@@ -34,7 +34,7 @@ end
 local function header(source: string, extra: string): string
 	-- Real-world sites know the launch pad's GPS, so the converter can place the mission there.
 	local geo = DroneConfig.HOME.GEO
-	local homeGeo = if geo then string.format('"home_geo":[%.7f,%.7f],', geo[1], geo[2]) else ""
+	local homeGeo = if geo then string.format('"home_geo":[%.7f,%.7f,%.1f],', geo[1], geo[2], geo[3] or 0) else ""
 	return string.format(
 		'{"format":"drone-sim-flight","version":1,"source":"%s","frame":"ENU_m_relative_to_home",'
 			.. '"site":"%s",%s"stud_per_meter":%s,"created_at":"%s",%s',

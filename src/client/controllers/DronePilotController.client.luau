@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DroneConfig = require(ReplicatedStorage:WaitForChild("DroneConfig"))
 local DroneHealthModel = require(ReplicatedStorage:WaitForChild("DroneHealthModel"))
+local WindModel = require(ReplicatedStorage:WaitForChild("WindModel"))
 local uiFolder = script.Parent.Parent:WaitForChild("ui")
 local FPVOverlay = require(uiFolder:WaitForChild("FPVOverlay"))
 local EditorUI = require(uiFolder:WaitForChild("EditorUI"))
@@ -44,6 +45,8 @@ local crashReason = ""
 local smoothedAccel = Vector3.zero
 local lastRates = Vector3.zero -- roll, pitch, yaw rates (rad/s, ArduPilot signs)
 local smoothedAngAccel = Vector3.zero
+local flightClock = 0 -- drives the turbulence noise
+local currentWind = Vector3.zero -- m/s at the drone, for the panel
 
 -- Live telemetry as attributes (read by tests / Studio tools today, the bridge server later)
 local telemetryOut = Instance.new("Configuration")
@@ -255,18 +258,23 @@ end
 
 local function stepFlight(dt: number)
 	local wasOnGround = onGroundTimer > 0
+	local groundY = FlightEnvironment.groundY(drone.Position)
+	-- Wind at the drone's height above ground (sheltered to nothing while sitting on the pad)
+	local agl = if groundY then (drone.Position.Y - groundY) / S else Autopilot.relAlt(drone.Position)
+	flightClock += dt
+	currentWind = if wasOnGround then Vector3.zero else WindModel.at(flightClock, agl)
+
 	if Autopilot.Mode == "CRASHED" then
 		if Autopilot.Armed then
-			DronePhysics.stepCrash(drone, dt)
+			DronePhysics.stepCrash(drone, dt, currentWind)
 		end
 		return
 	end
 
-	local groundY = FlightEnvironment.groundY(drone.Position)
 	local desired = Autopilot.guidance(dt, drone.Position, groundY)
 	if desired then
 		Autopilot.arm(drone.Position)
-		DronePhysics.stepGuided(drone, dt, desired)
+		DronePhysics.stepGuided(drone, dt, desired, currentWind)
 		return
 	end
 
@@ -284,7 +292,7 @@ local function stepFlight(dt: number)
 	if wasOnGround and sticks.Up <= 0 then
 		sticks = { Forward = 0, Right = 0, Up = sticks.Up, Yaw = sticks.Yaw } -- can't slide on the ground
 	end
-	DronePhysics.stepManual(drone, dt, sticks)
+	DronePhysics.stepManual(drone, dt, sticks, currentWind)
 end
 
 -- Angular acceleration (rad/s², ArduPilot roll/pitch/yaw signs) for the motor mixer
@@ -351,8 +359,8 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 	end
 
 	-- Motors & battery
-	local kinematicAccel = (drone.Velocity - prevVel) / dt
-	smoothedAccel = smoothedAccel:Lerp(DronePhysics.thrustAccel(drone.Velocity, kinematicAccel), math.min(1, 8 * dt))
+	local thrustAccel = if recorder.IsReplaying then (drone.Velocity - prevVel) / dt / S else drone.ThrustAccel
+	smoothedAccel = smoothedAccel:Lerp(thrustAccel, math.min(1, 8 * dt))
 	updateAngularAccel(dt, prevPitch, prevRoll, prevYaw)
 	local motorsRunning = Autopilot.Armed and Autopilot.Mode ~= "CRASHED"
 	DroneHealthModel.step(telemetry, dt, smoothedAccel, smoothedAngAccel, motorsRunning)
@@ -426,11 +434,21 @@ RunService.RenderStepped:Connect(function(rawDt: number)
 			telemetryOut:SetAttribute("Motor" .. i, m.Output)
 		end
 		telemetryOut:SetAttribute("Crash", crashReason)
+		telemetryOut:SetAttribute("WindAtDrone", currentWind)
+		telemetryOut:SetAttribute("TiltSaturated", drone.Saturated)
+		telemetryOut:SetAttribute("PitchDeg", drone.Pitch)
+		telemetryOut:SetAttribute("RollDeg", drone.Roll)
 	end
 
 	local toHome = drone.Position - Autopilot.Home
+	local weather = ReplicatedStorage:FindFirstChild("Weather")
 	healthPanel.Update(telemetry, Autopilot.Mode, Autopilot.Status, Autopilot.LastEvent,
-		Vector3.new(toHome.X, 0, toHome.Z).Magnitude / S)
+		Vector3.new(toHome.X, 0, toHome.Z).Magnitude / S, {
+			Report = WindModel.report(),
+			Station = if weather then tostring(weather:GetAttribute("Station") or "-") else "-",
+			AtDrone = currentWind,
+			Saturated = drone.Saturated,
+		})
 end)
 
 print("[DronePilotController] Drone flight controller ready (MANUAL / AUTO / RTL / LAND).")
