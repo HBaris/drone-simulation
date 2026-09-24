@@ -11,6 +11,7 @@ local FlightMath = require(ReplicatedStorage:WaitForChild("FlightMath"))
 local FormationGenerator = require(ReplicatedStorage:WaitForChild("FormationGenerator"))
 local DataExporter = require(ReplicatedStorage:WaitForChild("DataExporter"))
 local DroneSpawner = require(script.Parent:WaitForChild("DroneSpawner"))
+local ShowPlayer = require(script.Parent:WaitForChild("ShowPlayer"))
 
 -- Network Remotes Setup
 local NetworkFolder = ReplicatedStorage:FindFirstChild("DroneNetwork")
@@ -56,6 +57,7 @@ type ActiveDroneState = {
 
 local activeDrones: { [number]: ActiveDroneState } = {}
 local isSimulating = false
+local monitorSeparation: (dt: number) -> ()
 local currentWaypoints: { FlightMath.Waypoint } = {}
 
 -- Ensure N drones exist in SwarmFolder
@@ -105,6 +107,14 @@ syncDroneCount(1)
 -- Handle Formations
 SetFormationEvent.OnServerEvent:Connect(function(player, formationType: string, count: number, scale: number?)
 	print(string.format("[FlightManager] Player %s requested formation '%s' with %d drones.", player.Name, formationType, count))
+	if formationType == "Planned" then
+		-- Collision-free show from tools/plan_show.py; replaces the ad-hoc formation drones
+		syncDroneCount(1)
+		ShowPlayer.start(ShowPlayer.load(require(script.Parent:WaitForChild("ShowData") :: any)), SwarmFolder)
+		isSimulating = true
+		return
+	end
+	ShowPlayer.stop()
 	-- Drone_001 belongs to the client autopilot, so the show uses drones 2..count+1
 	count = math.clamp(count, 1, DroneConfig.SWARM.MAX_DRONES - 1)
 	syncDroneCount(count + 1)
@@ -161,6 +171,7 @@ end)
 
 StopFlightEvent.OnServerEvent:Connect(function()
 	-- Keep the heartbeat running so show drones fly back to their slots instead of teleporting
+	ShowPlayer.stop()
 	print("[FlightManager] Simulation stopped. Landing drones.")
 	for _, drone in pairs(activeDrones) do
 		if drone.Id == 1 then
@@ -189,6 +200,30 @@ ExportDataFunction.OnServerInvoke = function(player, formatType: string)
 	end
 end
 
+-- Live drone-to-drone separation over every swarm/show drone except Drone_001 (client-flown), 2 Hz.
+-- Published as DroneSwarm attributes MinSeparationM / ClosePairs for the HUD.
+local sepClock = 0
+monitorSeparation = function(dt: number)
+	sepClock += dt
+	if sepClock < 0.5 then
+		return
+	end
+	sepClock = 0
+	local positions = ShowPlayer.positions()
+	for id, drone in pairs(activeDrones) do
+		if id ~= 1 then
+			table.insert(positions, drone.CurrentPos)
+		end
+	end
+	if #positions < 2 then
+		SwarmFolder:SetAttribute("MinSeparationM", nil)
+		return
+	end
+	local best, close = ShowPlayer.separation(positions, DroneConfig.SWARM.MIN_SEPARATION_M)
+	SwarmFolder:SetAttribute("MinSeparationM", if best < math.huge then best else nil)
+	SwarmFolder:SetAttribute("ClosePairs", close)
+end
+
 -- Swarm Movement Heartbeat Loop (60 FPS kinematic path solver)
 local elapsedTime = 0
 RunService.Heartbeat:Connect(function(dt: number)
@@ -197,6 +232,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 
 	elapsedTime += dt
+	ShowPlayer.step(dt)
+	monitorSeparation(dt)
 
 	-- Batch move collection for maximum engine performance
 	local partsToMove: { BasePart } = {}

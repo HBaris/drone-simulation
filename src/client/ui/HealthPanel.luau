@@ -56,7 +56,7 @@ function HealthPanel.create(screenGui: ScreenGui): Panel
 	local frame = Instance.new("Frame")
 	frame.Name = "DroneHealthPanel"
 	frame.Size = UDim2.new(0, 280, 0, 296)
-	frame.Position = UDim2.new(1, -300, 0, 140)
+	frame.Position = UDim2.new(1, -300, 0, 184) -- below the 154 px swarm HUD
 	frame.BackgroundColor3 = Color3.fromRGB(15, 18, 24)
 	frame.BackgroundTransparency = 0.2
 	frame.BorderSizePixel = 0

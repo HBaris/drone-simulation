@@ -41,6 +41,12 @@
         },
         "BridgeLink": {
           "$path": "src/server/BridgeLink.server.luau"
+        },
+        "ShowPlayer": {
+          "$path": "src/server/ShowPlayer.luau"
+        },
+        "ShowData": {
+          "$path": "src/server/ShowData.luau"
         }
       }
     },

@@ -6,6 +6,21 @@ local DroneConfig = require(game:GetService("ReplicatedStorage"):WaitForChild("D
 
 local DroneSpawner = {}
 
+-- Weld everything to the anchored chassis: the swarm/show loops BulkMoveTo only the PrimaryPart,
+-- and separately anchored parts (LED, arms, rotors) would stay behind on the ground.
+local function weldToChassis(model: Model, chassis: BasePart)
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") and part ~= chassis then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = chassis
+			weld.Part1 = part
+			weld.Parent = part
+			part.Anchored = false
+			part.Massless = true
+		end
+	end
+end
+
 -- Creates a sleek procedural Quadcopter Model
 function DroneSpawner.createQuadcopterModel(droneId: number, isHighDetail: boolean?): Model
 	local highDetail = if isHighDetail ~= nil then isHighDetail else true
@@ -70,6 +85,7 @@ function DroneSpawner.createQuadcopterModel(droneId: number, isHighDetail: boole
 
 	-- If low detail mode (used for massive swarms > 300 drones), return early to maximize FPS
 	if not highDetail then
+		weldToChassis(model, chassis)
 		return model
 	end
 
@@ -121,6 +137,7 @@ function DroneSpawner.createQuadcopterModel(droneId: number, isHighDetail: boole
 		rotor.Parent = model
 	end
 
+	weldToChassis(model, chassis)
 	return model
 end
 

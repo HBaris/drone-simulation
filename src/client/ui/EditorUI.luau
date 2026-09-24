@@ -23,6 +23,7 @@ export type UIReferences = {
 	BtnFormHelix: TextButton,
 	BtnFormCircle: TextButton,
 	BtnFormGrid: TextButton,
+	BtnPlannedShow: TextButton,
 	DroneCountLabel: TextLabel,
 	CountButtons: { [number]: TextButton },
 }
@@ -151,6 +152,7 @@ function EditorUI.create(playerGui: Instance): UIReferences
 	droneCountLabel.TextXAlignment = Enum.TextXAlignment.Left
 	droneCountLabel.Parent = swarmFrame
 
+	local btnPlannedShow = createActionButton("✅ PLANLI ŞOV · 800 · ÇARPIŞMASIZ", 300, Color3.fromRGB(0, 150, 90), swarmFrame)
 	local btnFormHeart = createActionButton("❤ KALP FORMASYONU", 40, Color3.fromRGB(220, 40, 80), swarmFrame)
 	local btnFormSphere = createActionButton("🌐 3D KÜRE (GLOBE) ŞOVU", 83, Color3.fromRGB(40, 160, 220), swarmFrame)
 	local btnFormHelix = createActionButton("🧬 DNA / HELIX SPİRALİ", 126, Color3.fromRGB(150, 40, 220), swarmFrame)
@@ -202,6 +204,7 @@ function EditorUI.create(playerGui: Instance): UIReferences
 		BtnFormSphere = btnFormSphere,
 		BtnFormHelix = btnFormHelix,
 		BtnFormCircle = btnFormCircle,
+		BtnPlannedShow = btnPlannedShow,
 		BtnFormGrid = btnFormGrid,
 		DroneCountLabel = droneCountLabel,
 		CountButtons = countButtons,

@@ -19,7 +19,7 @@ hudGui.Parent = playerGui
 
 local hudFrame = Instance.new("Frame")
 hudFrame.Name = "HUDFrame"
-hudFrame.Size = UDim2.new(0, 240, 0, 110)
+hudFrame.Size = UDim2.new(0, 240, 0, 154)
 hudFrame.Position = UDim2.new(1, -260, 0, 20)
 hudFrame.BackgroundColor3 = Color3.fromRGB(18, 20, 26)
 hudFrame.BackgroundTransparency = 0.2
@@ -66,6 +66,8 @@ local _, countVal = createTelemetryRow("Count", "Drone Sayısı:", 10)
 local _, fpsVal = createTelemetryRow("FPS", "FPS:", 32)
 local _, altVal = createTelemetryRow("Alt", "İrtifa (Y):", 54)
 local _, speedVal = createTelemetryRow("Speed", "Hız:", 76)
+local _, sepVal = createTelemetryRow("Sep", "En yakın iki drone:", 98)
+local _, showVal = createTelemetryRow("Show", "Şov:", 120)
 
 -- Performance & Telemetry Update Loop
 local frameCount = 0
@@ -87,6 +89,20 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local swarmFolder = Workspace:FindFirstChild("DroneSwarm")
 	local droneCount = if swarmFolder then #swarmFolder:GetChildren() else 0
 	countVal.Text = tostring(droneCount)
+
+	-- Separation measured by the server (FlightManager) over all swarm/show drones
+	local sep = swarmFolder and swarmFolder:GetAttribute("MinSeparationM")
+	local close = swarmFolder and swarmFolder:GetAttribute("ClosePairs") or 0
+	if typeof(sep) == "number" then
+		sepVal.Text = if close > 0 then string.format("%.2f m · %d çift!", sep, close) else string.format("%.2f m", sep)
+		sepVal.TextColor3 = if close > 0 then Color3.fromRGB(255, 80, 80) else Color3.fromRGB(0, 255, 150)
+	else
+		sepVal.Text = "--"
+		sepVal.TextColor3 = Color3.fromRGB(150, 160, 175)
+	end
+	local phase = swarmFolder and swarmFolder:GetAttribute("ShowPhase")
+	local st = swarmFolder and swarmFolder:GetAttribute("ShowTime")
+	showVal.Text = if typeof(phase) == "string" and typeof(st) == "number" then string.format("%s · %.0f s", phase, st) else "--"
 
 	-- Update FPS badge color based on performance
 	fpsVal.Text = string.format("%d FPS", currentFps)

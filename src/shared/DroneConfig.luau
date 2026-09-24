@@ -60,6 +60,7 @@ local DroneConfig = {
 	-- Swarm Performance (Supports up to 800+ drones)
 	SWARM = {
 		MAX_DRONES = 800,
+		MIN_SEPARATION_M = 2.0,      -- closer than this = collision risk (plan_show.py --min-sep; RTK show drones)
 		BATCH_UPDATE_SIZE = 100,     -- Chunk size for BulkMoveTo
 		USE_CLIENT_INTERPOLATION = true,
 		SYNC_RATE_HZ = 30,           -- Network replication frequency (Server -> Client)

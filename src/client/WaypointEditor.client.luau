@@ -135,6 +135,11 @@ ui.BtnFormCircle.MouseButton1Click:Connect(function()
 	SetFormationEvent:FireServer("Circle", swarmDroneCount, 1.0)
 end)
 
+-- Show planned offline by tools/plan_show.py (optimal assignment, verified >= 2 m apart)
+ui.BtnPlannedShow.MouseButton1Click:Connect(function()
+	SetFormationEvent:FireServer("Planned", 0, 0)
+end)
+
 ui.BtnFormGrid.MouseButton1Click:Connect(function()
 	SetFormationEvent:FireServer("Grid", swarmDroneCount, 1.0)
 end)

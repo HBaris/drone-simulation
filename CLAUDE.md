@@ -50,7 +50,18 @@ Bu dosya Claude Code tarafından doldurulacaktır. Antigravity'nin bıraktığı
 - ✅ D2 · Sürü şovu aktif sahaya taşındı: formasyon merkezi `SITES.*.SHOW_CENTER` (+`SHOW_LIFT`, Bahçelievler'de pedin
   30 m üstü), bekleme ızgarası pedin yanında, modeller Persistent (StreamingEnabled'da istemciye gelmiyordu).
   Drone_001 istemci otopilotunda kaldığı için şov 2..N+1 numaralı dronları kullanır. Studio: 100 drone kalp, 33–45 m.
-- ⏳ N4 · Şarj istasyonları arası otomatik rota planlayıcı (batarya modeli + istasyon grafiği)
+- ✅ S1 · Çarpışmasız şov planlayıcı (`tools/plan_show.py`, `dronebridge/show.py`): optimal atama (Macar/LSA, kare mesafe)
+  + tüm dronlar tek minimum-jerk zaman profiliyle düz çizgide (CAPT, Turpin/Michael/Kumar 2014: başlangıç/hedef ≥ d
+  aralıklıysa geçişte ≥ d/√2). 10 Hz tam şov doğrulaması (ayrım, tavan, yarıçap, hız); ihlalde dosya yazılmaz.
+  800 drone, 3 m aralık: 5,2 dk, en yakın 2,12 m (= 3/√2), tavan 113 m. Düz şekiller 2 katman (tek katmanda halka 160 m'ye çıkıyordu).
+  Eski Roblox şovunun ölçümü: kalp 800'de 20.220 çift <1 m, geçişlerde 0,01 m → eski formasyon butonları çarpışmalı.
+- ✅ S2 · Roblox'ta planlı şov (`ShowPlayer.luau`, `ShowData.luau` = plan_show `--luau` çıktısı): "✅ PLANLI ŞOV" butonu,
+  sunucu 2 Hz canlı ayrım ölçer (HUD: "En yakın iki drone", çift sayısı kırmızı). Studio: eski kalp 0,08 m / 18.227 çift,
+  planlı 5,2 dk şov boyunca (631 örnek) en yakın 2,12 m @238 s — Python doğrulamasıyla birebir (2,12 m @237,9 s). Düzeltme: drone parçaları ayrı ayrı anchored'dı, sunucu yalnız gövdeyi taşıyordu →
+  LED/pervaneler yerde kalıyordu (eski şovda da); artık gövdeye kaynaklı.
+- ⏳ S3 · Şov dosyası → her drone için ArduPilot görevi/zaman senkronu (Skybrush değerlendirilecek), şov alanı harita kontrolü
+  (kalkış ızgarası 84×81 m açık alan ister; Bahçelievler pedi şov alanı değil), RTK GPS gereksinimi
+- ⏳ N4 · Şarj istasyonları arası otomatik rota planlayıcı — şarj istasyonları henüz kesin değil (2026-09-24), öncelik şovda
 
 ---
 
@@ -113,6 +124,17 @@ Tasarım kararları:
 - Test kanalı: istemcide `ReplicatedStorage.DroneCommand` (BindableEvent: "mission" {Vector3}, "rtl", "land", "reset")
   ve `ReplicatedStorage.DroneTelemetry` öznitelikleri (Mode, Status, Position, AltM, SpeedMs, VoltageV, Motor1-4…).
 
+### Sürü Şovu (S1–S2) — kullanım ve kararlar
+- Hedef (kullanıcı, 2026-09-24): 800 drone otonom, birbirine çarpmadan, **tek bilgisayardan**; elle anlık kumanda şart değil.
+  Dronlar gösteri bölgesine taşınıp orada uçurulabilir. Tüm ilçe haritaları ileride görüş menziline göre açılabilir.
+- `python tools/plan_show.py --drones 800 --sequence grid:8,sphere:10,heart:10,star:10,ring:8 --spacing 3 --min-sep 2
+  -o .cache/show800.json --luau src/server/ShowData.luau` (numpy + scipy gerekir). Çıkış 1 = çarpışma/limit ihlali.
+- Mimari öneri (gerçek şov sistemlerinin yaptığı): her drone kendi yörüngesini önceden yükler ve GPS saatine göre kendisi
+  uçar; yer istasyonu sadece "başla/dur/in" yayınlar → Wi-Fi'nin 800 akış taşıması gerekmez, bağlantı kopsa da şov sürer.
+- Doğrulama noktalar arası ayrımı ölçer; gerçekte drone'un kendi konum hatası da düşülmeli: M8N (±0,7 m, rüzgârda daha
+  fazla) ile 3 m aralık sınırda → şov dronlarında RTK (±2 cm) şart kabul edildi. F450 (2,1 kg, 45 cm) şov dronu değildir.
+- Formasyon merkezi: `DroneConfig.SITES.*.SHOW_CENTER`; ENU (x doğu, y kuzey, z yukarı) → Roblox (X, Y=z, Z=-y).
+
 ### Arazi & Canlı Rüzgâr
 - `osm2roblox.py --terrain`: SRTM 30 m (OpenTopoData), 3×3 min filtre (çatıları ayıklar) + yumuşatma; Bahçelievler'de
   -10 … +32 m kot farkı, ped 34,8 m AMSL. Binalar ayak izinin en alçak zemininde, yollar/parklar eğime uyar.
@@ -133,8 +155,7 @@ Tasarım kararları:
 ### Bilinen Sorunlar
 - Studio arka plandayken render FPS düşüyor; dt 0.1 ile sınırlı olduğundan simülasyon yavaş çekimde akıyor (fizik doğru).
 - Uçak/airframe değerleri (kütle, itki, batarya) TAHMİN — gerçek drone ölçülerine göre güncellenmeli.
-- Sürü formasyonunda Drone_001 sunucu tarafından da hareket ettiriliyor ama istemci her karede kendisi konumlandırıyor
-  (tek drone istemci otopilotuna ait). Sürü modunda Drone_001 formasyona katılmıyor.
+- Eski formasyon butonları (kalp/küre/sarmal/çember/ızgara) çarpışma kontrolsüz; yalnız "PLANLI ŞOV" doğrulanmış.
 - Tam istemci akışı (R/P/H/L/K/B tuşları, HealthPanel, kopyalama penceresi) henüz Studio'da Play ile denenmedi.
 - Roblox TextBox'ın çok uzun kayıtları (15 dk ≈ 250 KB) kopyalayıp kopyalayamadığı doğrulanmadı.
 
