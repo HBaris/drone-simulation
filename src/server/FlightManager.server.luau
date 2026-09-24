@@ -77,9 +77,13 @@ local function syncDroneCount(count: number)
 	for id = 1, count do
 		if not activeDrones[id] then
 			local model = DroneSpawner.createQuadcopterModel(id, not isLowDetail)
-			-- Drone 1 spawns at the Helipad on the European coastline
-			local spawnPos = if id == 1 then Vector3.new(-220, 3.0, 0) else Vector3.new(-220 + ((id - 1) % 10) * 3, 3.0, math.floor((id - 1) / 10) * 3)
+			-- Drone 1 sits on the active site's launch pad (flown client-side); show drones line up
+			-- in a grid beside it so the swarm takes off where the player is
+			local pad = DroneConfig.HOME.SIM_POSITION
+			local spawnPos = if id == 1 then pad else pad + Vector3.new(8 + ((id - 2) % 10) * 3, 0, math.floor((id - 2) / 10) * 3)
 			model:PivotTo(CFrame.new(spawnPos) * CFrame.Angles(0, math.rad(-90), 0))
+			-- Real-site maps are far from the origin; without this the client never streams the swarm in
+			model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 			model.Parent = SwarmFolder
 
 			activeDrones[id] = {
@@ -101,9 +105,11 @@ syncDroneCount(1)
 -- Handle Formations
 SetFormationEvent.OnServerEvent:Connect(function(player, formationType: string, count: number, scale: number?)
 	print(string.format("[FlightManager] Player %s requested formation '%s' with %d drones.", player.Name, formationType, count))
-	syncDroneCount(count)
+	-- Drone_001 belongs to the client autopilot, so the show uses drones 2..count+1
+	count = math.clamp(count, 1, DroneConfig.SWARM.MAX_DRONES - 1)
+	syncDroneCount(count + 1)
 
-	local center = Vector3.new(0, 0, 0)
+	local center = DroneConfig.HOME.SHOW_CENTER + Vector3.new(0, DroneConfig.HOME.SHOW_LIFT, 0)
 	local targets: { FormationGenerator.DroneTarget } = {}
 
 	if formationType == "Grid" then
@@ -119,7 +125,7 @@ SetFormationEvent.OnServerEvent:Connect(function(player, formationType: string, 
 	end
 
 	for _, tgt in ipairs(targets) do
-		local drone = activeDrones[tgt.DroneId]
+		local drone = activeDrones[tgt.DroneId + 1]
 		if drone then
 			drone.TargetPos = tgt.TargetPosition
 			drone.DelayRemaining = tgt.Delay
@@ -154,15 +160,18 @@ StartFlightEvent.OnServerEvent:Connect(function(player, waypoints: { FlightMath.
 end)
 
 StopFlightEvent.OnServerEvent:Connect(function()
-	isSimulating = false
+	-- Keep the heartbeat running so show drones fly back to their slots instead of teleporting
 	print("[FlightManager] Simulation stopped. Landing drones.")
 	for _, drone in pairs(activeDrones) do
 		if drone.Id == 1 then
 			continue -- flown client-side by the Autopilot (DronePilotController), which lands it itself
 		end
-		local groundPos = Vector3.new(drone.CurrentPos.X, 1.0, drone.CurrentPos.Z)
+		-- Return to the spawn grid beside the pad (flat ground there, unlike under the formation)
+		local pad = DroneConfig.HOME.SIM_POSITION
+		local slot = drone.Id - 2
+		local groundPos = pad + Vector3.new(8 + (slot % 10) * 3, 0, math.floor(slot / 10) * 3)
 		drone.TargetPos = groundPos
-		drone.Model:PivotTo(CFrame.new(groundPos))
+		drone.DelayRemaining = 0
 	end
 end)
 

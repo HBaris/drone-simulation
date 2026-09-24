@@ -397,6 +397,12 @@ local function stepFlight(dt: number)
 		sticks = { Forward = 0, Right = 0, Up = sticks.Up, Yaw = sticks.Yaw } -- can't slide on the ground
 	end
 	DronePhysics.stepManual(drone, dt, sticks, currentWind)
+	-- Fence avoidance: undo any part of this step that would carry the drone past the ceiling / circle
+	local allowed = Autopilot.fenceLimitVelocity(estPos, drone.Velocity)
+	if allowed ~= drone.Velocity then
+		drone.Position += (allowed - drone.Velocity) * dt
+		drone.Velocity = allowed
+	end
 end
 
 -- Angular acceleration (rad/s², ArduPilot roll/pitch/yaw signs) for the motor mixer

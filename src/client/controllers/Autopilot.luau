@@ -356,6 +356,39 @@ function Autopilot.checkFailsafes(dt: number, pos: Vector3, voltage: number)
 	fenceBreached = outside
 end
 
+-- ArduPilot fence avoidance (AVOID_ENABLE) in pilot modes: the drone slows down and stops FENCE_MARGIN
+-- inside the altitude ceiling and the circle, instead of flying through and triggering RTL.
+-- `velocity` in studs/s, `estPos` = what the flight controller believes. Returns the allowed velocity.
+function Autopilot.fenceLimitVelocity(estPos: Vector3, velocity: Vector3): (Vector3, boolean)
+	local limited = false
+	local v = velocity
+	local ceiling = FS.FENCE_ALT_MAX - FS.FENCE_MARGIN
+	local alt = Autopilot.relAlt(estPos)
+	if v.Y > 0 then
+		local allowed = math.max(0, ceiling - alt) * S -- 1 m/s per meter left: smooth stop at the ceiling
+		if v.Y > allowed then
+			v = Vector3.new(v.X, allowed, v.Z)
+			limited = alt > ceiling - 5
+		end
+	end
+	local offset = Vector3.new(estPos.X - Autopilot.Home.X, 0, estPos.Z - Autopilot.Home.Z)
+	local dist = offset.Magnitude / S
+	local edge = Autopilot.FenceRadius - FS.FENCE_MARGIN
+	if dist > 1 then
+		local out = offset.Unit
+		local outward = Vector3.new(v.X, 0, v.Z):Dot(out)
+		local allowed = math.max(0, edge - dist) * S
+		if outward > allowed then
+			v -= out * (outward - allowed)
+			limited = limited or dist > edge - 10
+		end
+	end
+	if limited then
+		Autopilot.Status = string.format("⚠ SANAL SINIR: tavan %.0f m · yarıçap %.0f m", FS.FENCE_ALT_MAX, Autopilot.FenceRadius)
+	end
+	return v, limited
+end
+
 function Autopilot.resetFailsafes()
 	lowVoltTimer, critVoltTimer, fenceBreached = 0, 0, false
 	Autopilot.FailsafeBatteryLow = false

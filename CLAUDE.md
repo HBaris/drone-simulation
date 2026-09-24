@@ -44,6 +44,12 @@ Bu dosya Claude Code tarafından doldurulacaktır. Antigravity'nin bıraktığı
 - ✅ N3 · TEI GCS kullanıcının makinesinde açıldı (venv yeniden kuruldu), UDP ile simülasyona bağlandı, Sağlık sekmesi
   gerçek veriyle doldu (motorlar, hücreler). Havada teşhis satırı henüz uçurulmadı (aynı mantık testlerle doğrulandı).
   Kalan küçük kusur: TEI'nin kendi buton yerleşiminde pencere yüksekliği yetmeyince yazılar kesiliyor.
+- ✅ D1 · Sanal sınır (ArduPilot AVOID/FENCE_MARGIN gibi): manuel uçuşta tavan 100 m / yarıçap 300 m'nin 2 m
+  içinde hız kesilir, "⚠ SANAL SINIR" uyarısı. Studio: Space basılı 30 sn → 97 m'de durdu; rüzgârla sürüklenen drone
+  297 m'de yarıçapta tutuldu. (Önceden tavan yalnız RTL tetikliyordu, pilot devralınca sınırsız tırmanılabiliyordu.)
+- ✅ D2 · Sürü şovu aktif sahaya taşındı: formasyon merkezi `SITES.*.SHOW_CENTER` (+`SHOW_LIFT`, Bahçelievler'de pedin
+  30 m üstü), bekleme ızgarası pedin yanında, modeller Persistent (StreamingEnabled'da istemciye gelmiyordu).
+  Drone_001 istemci otopilotunda kaldığı için şov 2..N+1 numaralı dronları kullanır. Studio: 100 drone kalp, 33–45 m.
 - ⏳ N4 · Şarj istasyonları arası otomatik rota planlayıcı (batarya modeli + istasyon grafiği)
 
 ---

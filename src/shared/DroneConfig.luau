@@ -7,13 +7,23 @@
 -- launch pad's GPS position so exported flights can be placed exactly where they were simulated.
 local SITES = {
 	-- Fictional Bosphorus demo map (scripts/BuildIstanbulMap.luau) — NOT to scale
-	ISTANBUL_DEMO = { HOME = Vector3.new(-220, 4.0, 0), HOME_GEO = nil :: { number }?, WEATHER_GEO = { 41.045, 29.034 } },
+	-- SHOW_CENTER: ground point the swarm light show is built around; SHOW_LIFT: extra studs so the
+	-- formations clear the rooftops (real map buildings reach ~30 m)
+	ISTANBUL_DEMO = {
+		HOME = Vector3.new(-220, 4.0, 0),
+		HOME_GEO = nil :: { number }?,
+		WEATHER_GEO = { 41.045, 29.034 },
+		SHOW_CENTER = Vector3.new(0, 0, 0),
+		SHOW_LIFT = 0,
+	},
 	-- Real Bahçelievler around the state hospital, map origin (6000, 0, 0); pad from osm2roblox
 	-- HOME_GEO = { lat, lon, ground m AMSL } of the pad (SRTM terrain; 0.7 stud = pad + landing gear)
 	BAHCELIEVLER = {
 		HOME = Vector3.new(6000 - 273.7, 33.2 + 0.7, -115.8),
 		HOME_GEO = { 41.0065415, 28.8434376, 34.8 },
 		WEATHER_GEO = { 41.0065415, 28.8434376 },
+		SHOW_CENTER = Vector3.new(6000 - 273.7, 33.2, -115.8 - 60), -- over the pad, 17 m north
+		SHOW_LIFT = 30 * 3.5, -- 30 m above the pad, below the 100 m fence ceiling
 	},
 }
 local ACTIVE_SITE = "BAHCELIEVLER"
@@ -82,6 +92,8 @@ local DroneConfig = {
 	HOME = {
 		SIM_POSITION = SITES[ACTIVE_SITE].HOME, -- launch pad (drone resting height)
 		GEO = SITES[ACTIVE_SITE].HOME_GEO, -- { lat, lon, AMSL } of the pad for real-world sites, else nil
+		SHOW_CENTER = SITES[ACTIVE_SITE].SHOW_CENTER,
+		SHOW_LIFT = SITES[ACTIVE_SITE].SHOW_LIFT,
 	},
 
 	-- Live weather (server WeatherService). Needs "Allow HTTP Requests" in Game Settings > Security.
@@ -151,7 +163,8 @@ local DroneConfig = {
 		BATT_CRT_VOLT = 13.2,  -- 3.3 V/cell -> LAND
 		BATT_LOW_TIMER = 10.0, -- s below the threshold before acting
 		FENCE_RADIUS = 300.0,  -- m from home -> RTL
-		FENCE_ALT_MAX = 100.0, -- m above home -> RTL
+		FENCE_ALT_MAX = 100.0, -- m above home -> RTL (SHGM ceiling is 120 m)
+		FENCE_MARGIN = 2.0,    -- m: manual flight is stopped this far inside the fence (ArduPilot AVOID/FENCE_MARGIN)
 		CRASH_SPEED = 3.0,     -- m/s: touching anything faster than this is a crash
 	},
 
