@@ -1,5 +1,13 @@
 # 🛸 Drone & Sürü (Swarm Light Show) Simülasyon Sistemi
 
+> **English summary.** A drone and swarm light-show simulator built in Roblox (Luau, Rojo).
+> - 3D waypoint editor with Catmull-Rom spline routes.
+> - Real-time flight simulation with pitch / roll tilt and a live telemetry panel.
+> - Swarm formations (heart, globe, helix, ring, grid) for up to **800 drones at 60 FPS**, using `Workspace:BulkMoveTo`.
+> - Export of timed ENU coordinates, yaw and LED RGB values as JSON / CSV for real flight controllers.
+>
+> The details below are in Turkish.
+
 Bu proje, 3D yazıcı ile üretilen fiziksel dronların uçuş öncesi test edilebilmesi, harita üzerinde 3D rota çizimi yapılabilmesi ve nihai olarak **800 adede kadar gösteri drone'unun (Drone Light Show)** senkronize koreografilerini oluşturmak amacıyla geliştirilmiş profesyonel bir simülasyon ve veri aktarım platformudur.
 
 Simülatör ortamında tasarlanan rotalar ve ışık koreografileri, fiziksel dronların uçuş kontrol kartlarına (PX4, ArduPilot, Betaflight veya özel ESP32 kontrolcüler) yüklenebilir standart formatta (**JSON / CSV**) dışa aktarılır.
